@@ -1,5 +1,5 @@
 [Unit]
-Description=Hourly encrypted Backblaze B2 backup for md-notes
+Description=Incremental encrypted Backblaze B2 backup for md-notes
 Wants=network-online.target
 After=network-online.target
 

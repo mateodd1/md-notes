@@ -3,10 +3,14 @@ set -euo pipefail
 
 # The rclone crypt remote encrypts contents and names before Backblaze B2.
 readonly LOCAL_BACKUP_DIR=/var/backups/md-notes/current
+readonly SNAPSHOTS_DIR=/var/backups/md-notes/snapshots
+readonly BACKUP_ROOT=/var/backups/md-notes
 readonly CURRENT_DESTINATION=crypt-md-notes:current
 readonly HISTORY_DESTINATION=crypt-md-notes:history
 readonly SNAPSHOT_ID="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 readonly LOCK_FILE=/run/lock/md-notes-backblaze-backup.lock
+readonly LAST_UPLOADED_FILE="${BACKUP_ROOT}/remote-last-uploaded-snapshot"
+readonly PAUSED_UNTIL_FILE="${BACKUP_ROOT}/remote-paused-until"
 
 exec 9>"${LOCK_FILE}"
 flock -n 9 || exit 0
@@ -17,6 +21,35 @@ if [[ ! -d "${LOCAL_BACKUP_DIR}/md-notes/spaces" || ! -f "${LOCAL_BACKUP_DIR}/md
   exit 1
 fi
 
-rclone sync "${LOCAL_BACKUP_DIR}" "${CURRENT_DESTINATION}" \
-  --backup-dir="${HISTORY_DESTINATION}/${SNAPSHOT_ID}" --create-empty-src-dirs --fast-list --checkers=8 --transfers=4 --stats=30s
-rclone check "${LOCAL_BACKUP_DIR}" "${CURRENT_DESTINATION}" --size-only --one-way
+now="$(date -u +%s)"
+if [[ -s "${PAUSED_UNTIL_FILE}" ]] && (( now < $(<"${PAUSED_UNTIL_FILE}") )); then
+  echo 'Backblaze upload is paused until the next UTC transaction window'
+  exit 0
+fi
+
+latest_snapshot="$(find "${SNAPSHOTS_DIR}" -mindepth 1 -maxdepth 1 -type d -name '20*' -printf '%f\n' | sort | tail -n 1)"
+if [[ -z "${latest_snapshot}" ]]; then
+  echo 'No local snapshot is available yet; skipping remote upload'
+  exit 0
+fi
+
+if [[ -s "${LAST_UPLOADED_FILE}" ]] && [[ "$(<"${LAST_UPLOADED_FILE}")" == "${latest_snapshot}" ]]; then
+  echo 'No new local snapshot; skipping Backblaze upload'
+  exit 0
+fi
+
+readonly RUN_LOG="$(mktemp /tmp/md-notes-backblaze.XXXXXX)"
+trap 'rm -f "${RUN_LOG}"' EXIT
+if ! rclone sync "${LOCAL_BACKUP_DIR}" "${CURRENT_DESTINATION}" \
+  --backup-dir="${HISTORY_DESTINATION}/${SNAPSHOT_ID}" --create-empty-src-dirs --fast-list --checkers=2 --transfers=2 --tpslimit=1 --tpslimit-burst=1 --stats=0 >"${RUN_LOG}" 2>&1; then
+  cat "${RUN_LOG}" >&2
+  if grep -q 'transaction_cap_exceeded' "${RUN_LOG}"; then
+    date -u -d 'tomorrow 00:05' +%s > "${PAUSED_UNTIL_FILE}"
+    echo 'Backblaze transaction cap reached; uploads paused until 00:05 UTC' >&2
+  fi
+  exit 1
+fi
+
+printf '%s\n' "${latest_snapshot}" > "${LAST_UPLOADED_FILE}"
+rm -f "${PAUSED_UNTIL_FILE}"
+echo "Uploaded local snapshot ${latest_snapshot} to Backblaze"
