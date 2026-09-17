@@ -1,0 +1,30 @@
+@extends('layouts.app')
+
+@push('head')
+<style>
+    .shared-shell { min-height:100vh; padding:26px 18px 60px; }.shared-header,.shared-note { width:min(100%,820px); margin:auto; }.shared-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 2px 20px; color:var(--muted); font-size:13px; }.shared-brand { color:var(--accent); font-weight:800; letter-spacing:-.03em; }.shared-header-right { display:flex; align-items:center; gap:12px; }.shared-note { padding:clamp(22px,5vw,52px); border:1px solid var(--line); border-radius:17px; background:var(--paper); box-shadow:0 18px 50px #10182818; }.shared-note h1 { margin:0; font-size:clamp(27px,5vw,39px); letter-spacing:-.045em; }.shared-path { margin:7px 0 32px; color:var(--muted); font-size:13px; }.shared-content { line-height:1.75; }.shared-content h2,.shared-content h3 { margin-top:1.7em; letter-spacing:-.035em; }.shared-content p,.shared-content ul,.shared-content ol { margin:1em 0; }.shared-content pre { overflow:auto; padding:14px; border-radius:9px; background:var(--preview); }.shared-content code { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }.shared-content a:not(.image-download) { color:var(--accent); font-weight:650; text-decoration:underline; text-decoration-thickness:1.5px; text-underline-offset:3px; }.shared-content img { display:block; max-width:100%; height:auto; }.note-image { position:relative; display:inline-block; max-width:100%; margin:.35em 0; vertical-align:top; }.image-download { position:absolute; z-index:1; top:9px; right:9px; display:grid; width:33px; height:33px; place-items:center; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); box-shadow:0 5px 14px #10182835; opacity:0; transition:opacity .16s ease,transform .16s ease; transform:translateY(-3px); }.note-image:hover .image-download,.image-download:focus-visible { opacity:1; transform:translateY(0); }.image-download:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }@media (hover:none) { .image-download { opacity:1; transform:translateY(0); } }.shared-theme { position:relative; }.shared-theme summary { cursor:pointer; list-style:none; border:1px solid var(--line); border-radius:8px; padding:5px 8px; color:var(--ink); background:var(--paper); }.shared-theme summary::-webkit-details-marker { display:none; }.shared-theme-menu { position:absolute; z-index:2; right:0; top:calc(100% + 7px); width:176px; padding:6px; border:1px solid var(--line); border-radius:10px; background:var(--paper); box-shadow:0 15px 35px #1018282e; }.shared-theme-menu button { display:block; width:100%; border:0; border-radius:7px; padding:7px 8px; background:transparent; color:var(--ink); text-align:left; font-size:13px; }.shared-theme-menu button:hover,.shared-theme-menu button.selected { background:var(--hover); }.shared-theme-menu button.selected::after { content:'✓'; float:right; color:var(--accent); font-weight:800; }
+</style>
+@endpush
+
+@section('body')
+<main class="shared-shell">
+    <header class="shared-header"><span class="shared-brand">✦ md-notes</span><div class="shared-header-right"><span>{{ __('ui.shared_note') }}</span><details class="shared-theme"><summary>{{ __('ui.appearance') }}</summary><div class="shared-theme-menu"><button type="button" data-share-theme="system">◐ {{ __('ui.system_theme') }}</button><button type="button" data-share-theme="light">☀ {{ __('ui.light_mode') }}</button><button type="button" data-share-theme="dark">☾ {{ __('ui.dark_mode') }}</button></div></details></div></header>
+    <article class="shared-note"><h1>{{ $title }}</h1><div class="shared-path">{{ $path }}</div><div class="shared-content">{!! $rendered !!}</div></article>
+</main>
+<script>
+    const enhanceImages = (root) => { root.querySelectorAll('img').forEach((image) => { if (image.closest('.note-image')) return; const imageElement = image.closest('a') || image; const wrapper = document.createElement('span'); wrapper.className = 'note-image'; imageElement.parentNode.insertBefore(wrapper, imageElement); wrapper.append(imageElement); const download = document.createElement('a'); download.className = 'image-download'; download.href = image.currentSrc || image.src; download.download = ''; download.title = @json(__('ui.download_image')); download.setAttribute('aria-label', @json(__('ui.download_image'))); download.textContent = '↓'; wrapper.append(download); }); };
+    enhanceImages(document.querySelector('.shared-content'));
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+    const resolveTheme = (theme) => theme === 'system' ? (systemTheme.matches ? 'dark' : 'light') : theme;
+    const setShareTheme = (theme, persist = true) => {
+        document.documentElement.classList.toggle('dark', resolveTheme(theme) === 'dark');
+        if (persist) try { localStorage.setItem('md-notes-theme', theme); } catch (_) {}
+        document.querySelectorAll('[data-share-theme]').forEach((button) => button.classList.toggle('selected', button.dataset.shareTheme === theme));
+    };
+    let savedTheme = 'system';
+    try { savedTheme = localStorage.getItem('md-notes-theme') || 'system'; } catch (_) {}
+    setShareTheme(savedTheme, false);
+    document.querySelectorAll('[data-share-theme]').forEach((button) => button.addEventListener('click', () => setShareTheme(button.dataset.shareTheme)));
+    systemTheme.addEventListener('change', () => { let selected = 'system'; try { selected = localStorage.getItem('md-notes-theme') || 'system'; } catch (_) {} if (selected === 'system') setShareTheme('system', false); });
+</script>
+@endsection

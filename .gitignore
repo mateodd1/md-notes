@@ -1,0 +1,26 @@
+# Environment files
+db.env
+app/.env
+app/.env.*
+!app/.env.example
+
+# Runtime & database data
+/mysql/
+data/
+migration-backups/
+*.sqlite*
+
+# Dependencies
+app/vendor/
+app/node_modules/
+
+# Cache & logs
+app/.phpunit.result.cache
+*.log
+
+# Sensitive keys
+app/storage/*.key
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
