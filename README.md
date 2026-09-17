@@ -1,47 +1,146 @@
-# md-notes
+# ✦ md-notes
 
-Espacio privado de notas Markdown desarrollado con Laravel y Docker.
+Un espacio de apuntes privado, rápido y centrado en archivos Markdown reales.
 
-## Características
+**md-notes** combina una interfaz de escritura cómoda con la libertad de conservar las notas como archivos `.md`, organizados en carpetas y aislados por cuenta. Está pensado para clase, proyectos personales y cualquier colección de notas que quieras conservar bajo tu control.
 
-- Almacenamiento directo en archivos Markdown (`.md`) organizados en carpetas por usuario.
-- Interfaz web con editor en tiempo real, vista previa y modo lectura.
-- Soporte para adjuntar imágenes (drag & drop y pegado desde el portapapeles).
-- Historial de versiones con capacidad de restauración y descarga.
-- Enlaces compartidos públicos con tiempo de caducidad configurable.
-- Selector de tema: claro, oscuro o sincronizado con el sistema.
-- Multilingüe: español e inglés según las preferencias del navegador.
-- API REST para creación y sincronización de notas mediante Bearer token.
-- Despliegue mediante Docker Compose (PHP 8.4 + Apache + MySQL 8.4).
+> Disponible en [md.mateo.ovh](https://md.mateo.ovh). Puedes probarlo con `demo@demo` / `demo`; los cambios de esa cuenta se restablecen cada hora.
 
-## Despliegue con Docker Compose
+## Lo que ofrece
 
-### 1. Variables de entorno
+| | Función | Detalle |
+| --- | --- | --- |
+| ✍️ | Escritura Markdown | Modo lectura por defecto, editor bajo demanda, vista previa y barra para títulos, listas, negrita, cursiva, citas, enlaces y código. |
+| 🗂️ | Organización | Carpetas, subcarpetas, menú contextual y arrastrar y soltar. Las notas pueden ordenarse manualmente dentro de cada carpeta. |
+| 🖼️ | Imágenes | Pega imágenes desde el portapapeles; se guardan privadas, se adaptan a la pantalla y se pueden descargar desde la propia nota. |
+| 🕘 | Historial | Hasta 50 versiones por nota y 7 días de retención. Consulta, restaura o descarga cualquier versión. |
+| 🔗 | Enlaces compartidos | Comparte una nota en modo lectura durante 1 h, 24 h, 7 días o indefinidamente. Los adjuntos del enlace permanecen protegidos por ese mismo enlace. |
+| 🔐 | Privacidad | Cada usuario tiene su propio espacio físico de archivos; una cuenta no puede leer las notas ni adjuntos de otra. |
+| 🌗 | Apariencia e idioma | Tema claro, oscuro o según el sistema. Español para navegadores en español e inglés para el resto. |
+| ⚡ | Experiencia fluida | Navegación entre notas, guardado y actualización del árbol sin recargar toda la página. |
 
-Copia las plantillas de configuración y define las credenciales:
+## Cómo se organiza
+
+Las notas no se esconden en una base de datos: cada cuenta tiene un directorio privado con sus carpetas y `.md`. La base de datos guarda únicamente la información de la aplicación —usuarios, sesiones, enlaces compartidos, historial y tokens de API—.
+
+```text
+espacio privado de cada usuario/
+├── Matemáticas/
+│   ├── Límites.md
+│   └── Derivadas.md
+├── Proyecto final.md
+└── .md-notes-media/       # adjuntos privados, ocultos del árbol
+```
+
+Los archivos y carpetas se pueden crear, renombrar, mover o eliminar con clic derecho. El orden manual de las notas se conserva por usuario y carpeta.
+
+## Compartir sin abrir tus notas
+
+Desde el menú contextual de cualquier `.md` se puede crear una URL corta como:
+
+```text
+https://md.mateo.ovh/share/ABCDE
+```
+
+El receptor solo ve una versión renderizada de esa nota. Puedes cambiar la duración o revocar el enlace desde **Perfil → Compartidos**. Las imágenes de una nota compartida se sirven únicamente mientras su enlace siga activo.
+
+## API para terminal y automatizaciones
+
+En **Perfil → Acceso API** puedes crear un token personal, que se muestra una única vez y se puede revocar cuando quieras. Con él puedes crear o actualizar notas desde un terminal:
+
+```bash
+curl --fail-with-body -X PUT \
+  -H "Authorization: Bearer TU_TOKEN" \
+  --data-binary @apuntes.md \
+  https://md.mateo.ovh/api/notes/Clase/apuntes.md
+```
+
+- Endpoint: `PUT /api/notes/{ruta}.md`
+- Autenticación: `Authorization: Bearer mdn_...`
+- Tamaño máximo: 5 MiB por archivo
+- Las carpetas que no existan se crean automáticamente.
+- Cada subida también crea una versión en el historial.
+
+## Privacidad y seguridad
+
+- Contraseñas con hash y un mínimo de 12 caracteres.
+- Recuperación de contraseña y confirmación por código para cambiarla.
+- Espacios de archivos, adjuntos, versiones y enlaces compartidos asociados siempre a su propietario.
+- El HTML incluido en Markdown se filtra y los enlaces inseguros no se renderizan.
+- Los tokens de API se guardan únicamente como hash.
+- Las imágenes sin referencias se limpian al guardar o borrar; las necesarias para restaurar versiones se conservan solo durante el periodo de historial.
+
+## Ejecutarlo con Docker Compose
+
+### Requisitos
+
+- Docker Engine con Docker Compose v2.
+- Una red Docker externa para el proxy inverso. Si no existe aún:
+
+```bash
+docker network create nginx-pm_default
+```
+
+### 1. Preparar la configuración
 
 ```bash
 cp db.env.example db.env
 cp app/.env.example app/.env
 ```
 
-Genera la clave de la aplicación en `app/.env`:
+Define contraseñas robustas en `db.env`. Después configura Laravel para MySQL en `app/.env`:
+
+```dotenv
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://tu-dominio.example
+
+DB_CONNECTION=mysql
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=md_notes
+DB_USERNAME=md_notes
+DB_PASSWORD=usa-la-misma-contraseña-de-db.env
+```
+
+Genera la clave de Laravel una vez:
+
 ```bash
 docker compose run --rm app php artisan key:generate
 ```
 
-### 2. Iniciar contenedores
+Configura también el correo SMTP en `app/.env` si quieres habilitar la bienvenida, recuperación de contraseña y códigos de confirmación.
+
+### 2. Arrancar y migrar
 
 ```bash
 docker compose up -d --build
-```
-
-### 3. Ejecutar migraciones
-
-```bash
 docker compose exec -T app php artisan migrate --force
 ```
 
-## Documentación
+El servicio `app` se conecta a la red del proxy `nginx-pm_default`; configura allí tu dominio y TLS. MySQL no publica ningún puerto al exterior.
 
-Para consultar la memoria completa del proyecto, arquitectura y comandos de mantenimiento, revisa [PROJECT_MEMORY.md](PROJECT_MEMORY.md).
+## Persistencia y copias
+
+- `data/`: notas Markdown y adjuntos privados por usuario.
+- `mysql/`: datos de MySQL.
+- `db.env` y `app/.env`: configuración local y credenciales.
+
+Estos directorios y ficheros están excluidos de Git. Antes de actualizar el servidor, conserva una copia recuperable de `data/` y un volcado de MySQL. El despliegue de producción puede complementar esto con una copia cifrada externa.
+
+## Desarrollo y mantenimiento
+
+Tras cambiar rutas, vistas o configuración, reconstruye las cachés:
+
+```bash
+docker compose exec -T app php artisan route:clear
+docker compose exec -T app php artisan view:clear
+docker compose exec -T app php artisan route:cache
+docker compose exec -T app php artisan view:cache
+```
+
+Para una referencia técnica completa —arquitectura, mantenimiento, historial, demo y copias— consulta [PROJECT_MEMORY.md](PROJECT_MEMORY.md).
+
+---
+
+Hecho con Laravel, MySQL y Docker, y diseñado para que tus apuntes sigan siendo tuyos.
