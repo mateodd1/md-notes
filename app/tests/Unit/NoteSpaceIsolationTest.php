@@ -59,4 +59,27 @@ class NoteSpaceIsolationTest extends TestCase
 
         $this->assertSame([], $spaces->tree($user));
     }
+
+    public function test_a_deleted_note_is_kept_in_trash_and_can_be_restored(): void
+    {
+        $user = new User(['name' => 'Propietario', 'email' => 'propietario@example.test']);
+        $user->setAttribute('id', 404);
+        $spaces = new NoteSpace($this->spacePath);
+
+        $path = $spaces->createNote($user, '', 'Recuperable');
+        $spaces->write($user, $path, '# Contenido que debe seguir ocupando espacio');
+        $usedBeforeTrash = app(\App\Services\StorageQuota::class)->used($user, $spaces->root($user));
+
+        $entry = $spaces->delete($user, $path);
+
+        $this->assertSame([], $spaces->tree($user));
+        $this->assertSame('.md-notes-trash/'.$entry['id'].'/content/'.$path, $entry['history_path']);
+        $this->assertSame($usedBeforeTrash, app(\App\Services\StorageQuota::class)->used($user, $spaces->root($user)));
+        $this->assertCount(1, $spaces->trashItems($user));
+
+        $spaces->restoreTrash($user, $entry['id']);
+
+        $this->assertSame('# Contenido que debe seguir ocupando espacio', $spaces->read($user, $path));
+        $this->assertSame([], $spaces->trashItems($user));
+    }
 }

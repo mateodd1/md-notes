@@ -243,31 +243,62 @@ class NotesController extends Controller
         ]);
 
         try {
-            $this->spaces->deleteItem($request->user(), $data['path']);
+            $entry = $this->spaces->deleteItem($request->user(), $data['path']);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['delete' => $exception->getMessage()]);
         }
 
         $this->removeSharedNotes($request->user(), $data['path']);
-        $this->history->remove($request->user(), $data['path']);
-        $this->media->pruneUnreferenced($request->user());
+        $this->history->relocate($request->user(), $data['path'], $entry['history_path']);
 
-        return redirect()->route('notes.index')->with('status', __('ui.item_deleted'));
+        return redirect()->route('notes.index')->with('status', __('ui.item_moved_to_trash'));
     }
 
     public function destroy(Request $request, string $path): RedirectResponse
     {
         try {
-            $this->spaces->delete($request->user(), $path);
+            $entry = $this->spaces->delete($request->user(), $path);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['note' => $exception->getMessage()]);
         }
 
         $this->removeSharedNotes($request->user(), $path);
-        $this->history->remove($request->user(), $path);
+        $this->history->relocate($request->user(), $path, $entry['history_path']);
+
+        return redirect()->route('notes.index')->with('status', __('ui.note_moved_to_trash'));
+    }
+
+    public function trashIndex(Request $request): View
+    {
+        return view('trash.index', [
+            'items' => $this->spaces->trashItems($request->user()),
+        ]);
+    }
+
+    public function restoreTrash(Request $request, string $id): RedirectResponse
+    {
+        try {
+            $entry = $this->spaces->restoreTrash($request->user(), $id);
+            $this->history->relocate($request->user(), $entry['history_path'], $entry['original_path']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['trash' => $exception->getMessage()]);
+        }
+
+        return redirect()->route('notes.index')->with('status', __('ui.trash_restored'));
+    }
+
+    public function destroyTrash(Request $request, string $id): RedirectResponse
+    {
+        try {
+            $entry = $this->spaces->deleteTrash($request->user(), $id);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['trash' => $exception->getMessage()]);
+        }
+
+        $this->history->remove($request->user(), $entry['history_path']);
         $this->media->pruneUnreferenced($request->user());
 
-        return redirect()->route('notes.index')->with('status', __('ui.note_deleted'));
+        return redirect()->route('trash.index')->with('status', __('ui.trash_deleted_permanently'));
     }
 
     private function relocateSharedNotes(User $user, string $sourcePath, string $destinationPath): void

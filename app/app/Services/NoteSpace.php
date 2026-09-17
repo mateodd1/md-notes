@@ -13,6 +13,10 @@ class NoteSpace
 
     private const FOLDER_ORDER_FILE = '.md-notes-folder-order.json';
 
+    private const TRASH_DIRECTORY = '.md-notes-trash';
+
+    private const TRASH_METADATA_FILE = 'metadata.json';
+
     public function __construct(private readonly ?string $basePath = null)
     {
     }
@@ -121,15 +125,10 @@ class NoteSpace
         return $relativePath;
     }
 
-    public function delete(User $user, string $path): void
+    /** @return array{id: string, original_path: string, history_path: string, type: string, deleted_at: string} */
+    public function delete(User $user, string $path): array
     {
-        $file = $this->filePath($user, $path);
-
-        if (! is_file($file) || ! unlink($file)) {
-            throw new RuntimeException(__('ui.cannot_delete_note'));
-        }
-
-        $this->removeFromNoteOrder($user, $this->normalize($path));
+        return $this->trash($user, $path);
     }
 
     public function rename(User $user, string $path, string $name): string
@@ -171,53 +170,116 @@ class NoteSpace
         return $targetRelative;
     }
 
-    public function deleteItem(User $user, string $path): void
+    /** @return array{id: string, original_path: string, history_path: string, type: string, deleted_at: string} */
+    public function deleteItem(User $user, string $path): array
+    {
+        return $this->trash($user, $path);
+    }
+
+    /** @return array{id: string, original_path: string, history_path: string, type: string, deleted_at: string} */
+    public function trash(User $user, string $path): array
     {
         $root = $this->root($user);
         $relativePath = $this->normalize($path);
-        $target = $root.'/'.$relativePath;
-        $this->assertContained($root, $target, true);
+        $source = $root.'/'.$relativePath;
+        $this->assertContained($root, $source, true);
 
-        if (is_file($target)) {
-            if (! Str::endsWith(Str::lower($target), '.md') || ! unlink($target)) {
-                throw new RuntimeException(__('ui.cannot_delete_note'));
-            }
-
-            $this->removeFromNoteOrder($user, $relativePath);
-
-            return;
-        }
-
-        if (! is_dir($target)) {
+        $type = is_dir($source) ? 'folder' : (is_file($source) && Str::endsWith(Str::lower($source), '.md') ? 'note' : null);
+        if ($type === null) {
             abort(404);
         }
 
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($target, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST,
-        );
+        $id = now()->format('YmdHis').'-'.bin2hex(random_bytes(8));
+        $container = $this->trashDirectory($user).'/'.$id;
+        $destination = $container.'/content/'.$relativePath;
+        $entry = [
+            'id' => $id,
+            'original_path' => $relativePath,
+            'history_path' => self::TRASH_DIRECTORY.'/'.$id.'/content/'.$relativePath,
+            'type' => $type,
+            'deleted_at' => now()->toIso8601String(),
+        ];
 
-        foreach ($items as $item) {
-            $itemPath = $item->getPathname();
-            if ($item->isLink()) {
-                $deleted = unlink($itemPath);
-            } elseif ($item->isDir()) {
-                $deleted = rmdir($itemPath);
-            } else {
-                $deleted = unlink($itemPath);
-            }
-
-            if (! $deleted) {
-                throw new RuntimeException(__('ui.cannot_delete_folder_contents'));
-            }
+        if (! mkdir(dirname($destination), 0770, true) && ! is_dir(dirname($destination))) {
+            throw new RuntimeException(__('ui.cannot_move_to_trash'));
         }
 
-        if (! rmdir($target)) {
-            throw new RuntimeException(__('ui.cannot_delete_folder'));
+        if (file_put_contents($container.'/'.self::TRASH_METADATA_FILE, json_encode($entry, JSON_THROW_ON_ERROR), LOCK_EX) === false) {
+            throw new RuntimeException(__('ui.cannot_move_to_trash'));
+        }
+
+        if (! rename($source, $destination)) {
+            File::deleteDirectory($container);
+            throw new RuntimeException(__('ui.cannot_move_to_trash'));
         }
 
         $this->removeFromNoteOrder($user, $relativePath);
         $this->removeFromFolderOrder($user, $relativePath);
+
+        return $entry;
+    }
+
+    /** @return array<int, array{id: string, original_path: string, history_path: string, type: string, deleted_at: string}> */
+    public function trashItems(User $user): array
+    {
+        $directory = $this->trashDirectory($user, create: false);
+        if (! is_dir($directory)) {
+            return [];
+        }
+
+        $entries = [];
+        foreach (scandir($directory) ?: [] as $id) {
+            if ($id === '.' || $id === '..') {
+                continue;
+            }
+
+            try {
+                $entries[] = $this->trashEntry($user, $id);
+            } catch (\Throwable) {
+                // Ignore incomplete trash records instead of exposing internal files.
+            }
+        }
+
+        usort($entries, fn (array $a, array $b): int => strcmp($b['deleted_at'], $a['deleted_at']));
+
+        return $entries;
+    }
+
+    /** @return array{id: string, original_path: string, history_path: string, type: string, deleted_at: string} */
+    public function restoreTrash(User $user, string $id): array
+    {
+        $entry = $this->trashEntry($user, $id);
+        $root = $this->root($user);
+        $source = $this->trashDirectory($user).'/'.$entry['id'].'/content/'.$entry['original_path'];
+        $destination = $root.'/'.$entry['original_path'];
+
+        if (file_exists($destination)) {
+            throw new RuntimeException(__('ui.cannot_restore_trashed_item'));
+        }
+
+        if (! is_dir(dirname($destination)) && ! mkdir(dirname($destination), 0770, true) && ! is_dir(dirname($destination))) {
+            throw new RuntimeException(__('ui.cannot_restore_trashed_item'));
+        }
+
+        $this->assertContained($root, $destination, false);
+        if (! rename($source, $destination)) {
+            throw new RuntimeException(__('ui.cannot_restore_trashed_item'));
+        }
+
+        File::deleteDirectory($this->trashDirectory($user).'/'.$entry['id']);
+
+        return $entry;
+    }
+
+    /** @return array{id: string, original_path: string, history_path: string, type: string, deleted_at: string} */
+    public function deleteTrash(User $user, string $id): array
+    {
+        $entry = $this->trashEntry($user, $id);
+        if (! File::deleteDirectory($this->trashDirectory($user).'/'.$entry['id'])) {
+            throw new RuntimeException(__('ui.cannot_delete_trashed_item'));
+        }
+
+        return $entry;
     }
 
     public function move(User $user, string $sourcePath, string $destinationPath): string
@@ -374,7 +436,7 @@ class NoteSpace
         $files = [];
 
         foreach (scandir($directory) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..' || $entry === '.md-notes-media' || is_link($directory.'/'.$entry)) {
+            if ($entry === '.' || $entry === '..' || in_array($entry, ['.md-notes-media', self::TRASH_DIRECTORY], true) || is_link($directory.'/'.$entry)) {
                 continue;
             }
 
@@ -453,7 +515,7 @@ class NoteSpace
         $paths = [];
 
         foreach (scandir($directory) ?: [] as $entry) {
-            if ($entry !== '.' && $entry !== '..' && $entry !== '.md-notes-media' && is_dir($directory.'/'.$entry) && ! is_link($directory.'/'.$entry)) {
+            if ($entry !== '.' && $entry !== '..' && ! in_array($entry, ['.md-notes-media', self::TRASH_DIRECTORY], true) && is_dir($directory.'/'.$entry) && ! is_link($directory.'/'.$entry)) {
                 $paths[] = $parent === '' ? $entry : $parent.'/'.$entry;
             }
         }
@@ -466,6 +528,53 @@ class NoteSpace
         $parent = dirname($path);
 
         return $parent === '.' ? '' : $parent;
+    }
+
+    private function trashDirectory(User $user, bool $create = true): string
+    {
+        $directory = $this->root($user).'/'.self::TRASH_DIRECTORY;
+
+        if ($create && ! is_dir($directory) && ! mkdir($directory, 0770, true) && ! is_dir($directory)) {
+            throw new RuntimeException(__('ui.cannot_move_to_trash'));
+        }
+
+        return $directory;
+    }
+
+    /** @return array{id: string, original_path: string, history_path: string, type: string, deleted_at: string} */
+    private function trashEntry(User $user, string $id): array
+    {
+        if (! preg_match('/^\d{14}-[a-f0-9]{16}$/', $id)) {
+            abort(404);
+        }
+
+        $container = $this->trashDirectory($user, create: false).'/'.$id;
+        $metadata = @file_get_contents($container.'/'.self::TRASH_METADATA_FILE);
+        $entry = is_string($metadata) ? json_decode($metadata, true) : null;
+
+        if (! is_array($entry)
+            || ($entry['id'] ?? null) !== $id
+            || ! is_string($entry['original_path'] ?? null)
+            || ! in_array($entry['type'] ?? null, ['note', 'folder'], true)
+            || ! is_string($entry['deleted_at'] ?? null)) {
+            abort(404);
+        }
+
+        $originalPath = $this->normalize($entry['original_path']);
+        $content = $container.'/content/'.$originalPath;
+        $this->assertContained($this->root($user), $content, true);
+
+        if (($entry['type'] === 'note' && ! is_file($content)) || ($entry['type'] === 'folder' && ! is_dir($content))) {
+            abort(404);
+        }
+
+        return [
+            'id' => $id,
+            'original_path' => $originalPath,
+            'history_path' => self::TRASH_DIRECTORY.'/'.$id.'/content/'.$originalPath,
+            'type' => $entry['type'],
+            'deleted_at' => $entry['deleted_at'],
+        ];
     }
 
     /** @return array<string, array<int, string>> */

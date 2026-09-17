@@ -138,6 +138,59 @@ class NotesTest extends TestCase
         $this->assertDatabaseMissing('note_versions', ['id' => $expired->id]);
     }
 
+    public function test_trashing_and_restoring_a_note_preserves_its_version_history(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+            'is_admin' => true,
+        ]);
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+        $spaces = $this->app->make(NoteSpace::class);
+        $history = $this->app->make(NoteVersionHistory::class);
+        $path = $spaces->createNote($user, '', 'Versionada');
+        $history->record($user, $path, $spaces->read($user, $path));
+        $spaces->write($user, $path, '# Segunda versión');
+        $history->record($user, $path, '# Segunda versión');
+
+        $entry = $spaces->trash($user, $path);
+        $history->relocate($user, $path, $entry['history_path']);
+
+        $this->assertSame(2, NoteVersion::query()->where('user_id', $user->id)->where('path', $entry['history_path'])->count());
+
+        $spaces->restoreTrash($user, $entry['id']);
+        $history->relocate($user, $entry['history_path'], $path);
+
+        $this->assertSame(2, NoteVersion::query()->where('user_id', $user->id)->where('path', $path)->count());
+    }
+
+    public function test_deleting_a_note_moves_it_to_the_trash_until_it_is_restored(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+            'is_admin' => true,
+        ]);
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+        $spaces = $this->app->make(NoteSpace::class);
+        $path = $spaces->createNote($user, '', 'Papelera');
+        $this->app->make(NoteVersionHistory::class)->record($user, $path, $spaces->read($user, $path));
+
+        $this->withSession(['_token' => 'test-token'])->actingAs($user)->delete(route('notes.destroy', ['path' => $path]), ['_token' => 'test-token'])
+            ->assertRedirect(route('notes.index'));
+
+        $entry = $spaces->trashItems($user)[0];
+        $this->assertDatabaseHas('note_versions', ['user_id' => $user->id, 'path' => $entry['history_path']]);
+        $this->actingAs($user)->get(route('trash.index'))->assertOk()->assertSee('Papelera');
+        $this->withSession(['_token' => 'test-token'])->actingAs($user)->post(route('trash.restore', ['id' => $entry['id']]), ['_token' => 'test-token'])
+            ->assertRedirect(route('notes.index'));
+
+        $this->assertSame("# Papelera\n\n", $spaces->read($user, $path));
+        $this->assertDatabaseHas('note_versions', ['user_id' => $user->id, 'path' => $path]);
+    }
+
     public function test_an_image_from_the_clipboard_can_be_uploaded_to_the_users_private_space(): void
     {
         $user = User::query()->create([

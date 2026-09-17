@@ -12,6 +12,7 @@ class StorageQuota
     private const METADATA_FILES = [
         '.md-notes-order.json',
         '.md-notes-folder-order.json',
+        'metadata.json',
     ];
 
     /** @return array{used: int, limit: int, available: int, percentage: int, used_human: string, limit_human: string} */

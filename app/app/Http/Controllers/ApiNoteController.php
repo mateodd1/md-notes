@@ -7,6 +7,7 @@ use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class ApiNoteController extends Controller
@@ -22,6 +23,12 @@ class ApiNoteController extends Controller
 
     public function upload(Request $request, string $path): JsonResponse
     {
+        if (! Str::endsWith(Str::lower($path), '.md')) {
+            return response()->json([
+                'message' => 'Only .md files can be uploaded through this API.',
+            ], 422);
+        }
+
         $content = $request->getContent();
 
         if (strlen($content) > self::MAX_CONTENT_BYTES) {
