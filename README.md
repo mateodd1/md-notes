@@ -19,7 +19,7 @@ Un espacio de apuntes privado, rápido y centrado en archivos Markdown reales.
 | 📎 | Adjuntos | Arrastra varios archivos, selecciónalos o pégalos desde el portapapeles. La subida muestra progreso, admite hasta 10 MB por archivo y mantiene todo privado. |
 | 🕘 | Historial | Hasta 50 versiones por nota y 7 días de retención. Consulta, restaura o descarga cualquier versión. |
 | 🔗 | Enlaces compartidos | Comparte una nota en modo lectura durante 1 h, 24 h, 7 días o indefinidamente. Los adjuntos del enlace permanecen protegidos por ese mismo enlace. |
-| 🔐 | Privacidad | Cada usuario tiene su propio espacio físico de archivos; una cuenta no puede leer las notas ni adjuntos de otra. |
+| 🔐 | Privacidad | Las notas son privadas por defecto; solo se accede a ellas mediante enlaces compartidos que puedes limitar o revocar. |
 | 💾 | Cuota | Cada cuenta dispone de 100 MB para notas y adjuntos, con indicador de uso en el panel y el perfil. |
 | 📦 | Exportación | Desde Perfil puedes pedir un ZIP privado con tus notas, adjuntos, historial y datos de cuenta mediante un enlace enviado por correo. |
 | 🌗 | Apariencia e idioma | Tema claro, oscuro o según el sistema. Español para navegadores en español e inglés para el resto. |
