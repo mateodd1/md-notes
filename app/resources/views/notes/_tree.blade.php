@@ -1,7 +1,7 @@
 @foreach ($nodes as $node)
     @if ($node['type'] === 'folder')
-        <details class="tree-folder" open draggable="true" data-drag-path="{{ $node['path'] }}" data-drag-type="folder" data-context-type="folder" data-context-path="{{ $node['path'] }}" data-context-name="{{ $node['name'] }}">
-            <summary data-drop-path="{{ $node['path'] }}">▾ <span>📁 {{ $node['name'] }}</span></summary>
+        <details class="tree-folder" open data-context-type="folder" data-context-path="{{ $node['path'] }}" data-context-name="{{ $node['name'] }}">
+            <summary draggable="true" data-drag-path="{{ $node['path'] }}" data-drag-type="folder" data-drop-path="{{ $node['path'] }}" data-folder-sort-target>▾ <span>📁 {{ $node['name'] }}</span></summary>
             <div class="tree-children">@include('notes._tree', ['nodes' => $node['children'], 'path' => $path])</div>
         </details>
     @else

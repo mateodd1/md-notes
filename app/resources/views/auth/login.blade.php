@@ -15,7 +15,6 @@
         </form>
         <p class="form-foot"><a href="{{ route('password.request') }}">{{ __('ui.forgot_password') }}</a></p>
         <p class="form-foot">{{ __('ui.no_account') }} <a href="{{ route('register') }}">{{ __('ui.sign_up') }}</a></p>
-        <p class="form-foot" style="margin-top:10px !important">{{ __('ui.try_demo') }}</p>
     </section>
 </main>
 @endsection

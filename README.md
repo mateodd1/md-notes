@@ -4,18 +4,19 @@ Un espacio de apuntes privado, rápido y centrado en archivos Markdown reales.
 
 **md-notes** combina una interfaz de escritura cómoda con la libertad de conservar las notas como archivos `.md`, organizados en carpetas y aislados por cuenta. Está pensado para clase, proyectos personales y cualquier colección de notas que quieras conservar bajo tu control.
 
-> Disponible en [md.mateo.ovh](https://md.mateo.ovh). Puedes probarlo con `demo@demo` / `demo`; los cambios de esa cuenta se restablecen cada hora.
+> Disponible en [md.mateo.ovh](https://md.mateo.ovh). La raíz presenta el servicio y el espacio de trabajo privado está en `/app`. Puedes probarlo con `demo@demo` / `demo`; los cambios de esa cuenta se restablecen cada hora.
 
 ## Lo que ofrece
 
 | | Función | Detalle |
 | --- | --- | --- |
 | ✍️ | Escritura Markdown | Modo lectura por defecto, editor bajo demanda, vista previa y barra para títulos, listas, negrita, cursiva, citas, enlaces y código. |
-| 🗂️ | Organización | Carpetas, subcarpetas, menú contextual y arrastrar y soltar. Las notas pueden ordenarse manualmente dentro de cada carpeta. |
-| 🖼️ | Imágenes | Pega imágenes desde el portapapeles; se guardan privadas, se adaptan a la pantalla y se pueden descargar desde la propia nota. |
+| 🗂️ | Organización | Carpetas, subcarpetas, menú contextual y arrastrar y soltar. Notas y carpetas se pueden ordenar manualmente en cada nivel y mover a la raíz. |
+| 📎 | Adjuntos | Pega imágenes o adjunta archivos de hasta 10 MB; las imágenes se adaptan a la pantalla y todos los adjuntos quedan privados. |
 | 🕘 | Historial | Hasta 50 versiones por nota y 7 días de retención. Consulta, restaura o descarga cualquier versión. |
 | 🔗 | Enlaces compartidos | Comparte una nota en modo lectura durante 1 h, 24 h, 7 días o indefinidamente. Los adjuntos del enlace permanecen protegidos por ese mismo enlace. |
 | 🔐 | Privacidad | Cada usuario tiene su propio espacio físico de archivos; una cuenta no puede leer las notas ni adjuntos de otra. |
+| 💾 | Cuota | Cada cuenta dispone de 100 MB para notas y adjuntos, con indicador de uso en el panel y el perfil. |
 | 🌗 | Apariencia e idioma | Tema claro, oscuro o según el sistema. Español para navegadores en español e inglés para el resto. |
 | ⚡ | Experiencia fluida | Navegación entre notas, guardado y actualización del árbol sin recargar toda la página. |
 
@@ -32,7 +33,7 @@ espacio privado de cada usuario/
 └── .md-notes-media/       # adjuntos privados, ocultos del árbol
 ```
 
-Los archivos y carpetas se pueden crear, renombrar, mover o eliminar con clic derecho. El orden manual de las notas se conserva por usuario y carpeta.
+Los archivos y carpetas se pueden crear, renombrar, mover o eliminar con clic derecho. El orden manual de ambos se conserva por usuario y carpeta.
 
 ## Compartir sin abrir tus notas
 
@@ -42,7 +43,7 @@ Desde el menú contextual de cualquier `.md` se puede crear una URL corta como:
 https://md.mateo.ovh/share/ABCDE
 ```
 
-El receptor solo ve una versión renderizada de esa nota. Puedes cambiar la duración o revocar el enlace desde **Perfil → Compartidos**. Las imágenes de una nota compartida se sirven únicamente mientras su enlace siga activo.
+El receptor solo ve una versión renderizada de esa nota. Puedes cambiar la duración o revocar el enlace desde **Perfil → Compartidos**. Las imágenes y archivos adjuntos de una nota compartida se sirven únicamente mientras su enlace siga activo.
 
 ## API para terminal y automatizaciones
 
@@ -68,7 +69,7 @@ curl --fail-with-body -X PUT \
 - Espacios de archivos, adjuntos, versiones y enlaces compartidos asociados siempre a su propietario.
 - El HTML incluido en Markdown se filtra y los enlaces inseguros no se renderizan.
 - Los tokens de API se guardan únicamente como hash.
-- Las imágenes sin referencias se limpian al guardar o borrar; las necesarias para restaurar versiones se conservan solo durante el periodo de historial.
+- Los adjuntos sin referencias se limpian al guardar o borrar; los necesarios para restaurar versiones se conservan solo durante el periodo de historial.
 
 ## Ejecutarlo con Docker Compose
 
@@ -126,7 +127,7 @@ El servicio `app` se conecta a la red del proxy `nginx-pm_default`; configura al
 - `mysql/`: datos de MySQL.
 - `db.env` y `app/.env`: configuración local y credenciales.
 
-Estos directorios y ficheros están excluidos de Git. Antes de actualizar el servidor, conserva una copia recuperable de `data/` y un volcado de MySQL. El despliegue de producción puede complementar esto con una copia cifrada externa.
+Estos directorios y ficheros están excluidos de Git. En producción, `md-notes` crea una copia local incremental cada 5 minutos, conserva instantáneas con enlaces físicos durante 30 días y sube el estado local cifrado a Backblaze B2 a `:30` de cada hora. El proceso se detiene con seguridad si quedan menos de 5 GiB libres. Antes de actualizar el servidor, confirma que la última instantánea local se ha creado correctamente.
 
 ## Desarrollo y mantenimiento
 

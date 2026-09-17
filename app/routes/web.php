@@ -8,9 +8,11 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ShareController;
 use Illuminate\Support\Facades\Route;
 
+Route::view('/', 'welcome')->name('home');
+
 Route::get('/share/{token}/media/{filename}', [ShareController::class, 'media'])
     ->where('token', '[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}')
-    ->where('filename', '[a-z0-9]{24}\.(?:jpg|png|gif|webp)')
+    ->where('filename', '[a-z0-9]{24}\.[a-z0-9]{1,10}')
     ->middleware('throttle:60,1')
     ->name('shares.media');
 Route::get('/share/{token}', [ShareController::class, 'show'])->where('token', '[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}')->middleware('throttle:60,1')->name('shares.show');
@@ -28,7 +30,7 @@ Route::middleware('guest')->group(function (): void {
 
 Route::post('/logout', [AuthController::class, 'destroy'])->middleware('auth')->name('logout');
 
-Route::middleware('auth')->group(function (): void {
+Route::middleware('auth')->prefix('app')->group(function (): void {
     Route::get('/', [NotesController::class, 'index'])->name('notes.index');
     Route::post('/folders', [NotesController::class, 'storeFolder'])->name('folders.store');
     Route::post('/notes', [NotesController::class, 'storeNote'])->name('notes.store');
@@ -51,6 +53,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/media/{filename}', [NoteMediaController::class, 'show'])->name('media.show');
     Route::patch('/organize', [NotesController::class, 'move'])->name('notes.move');
     Route::patch('/reorder', [NotesController::class, 'reorder'])->name('notes.reorder');
+    Route::patch('/reorder-folders', [NotesController::class, 'reorderFolder'])->name('folders.reorder');
     Route::patch('/item/rename', [NotesController::class, 'rename'])->name('items.rename');
     Route::delete('/item', [NotesController::class, 'destroyItem'])->name('items.destroy');
     Route::get('/download/{path}', [NotesController::class, 'download'])->where('path', '.*\.md')->name('notes.download');

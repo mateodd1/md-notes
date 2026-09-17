@@ -113,11 +113,15 @@ class ShareController extends Controller
         abort_unless($this->mediaIsReferencedByNote($filename, $content), 404);
 
         $path = $this->media->path($share->user, $filename);
-
-        return response()->file($path, [
+        $headers = [
             'Content-Type' => mime_content_type($path) ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store',
-        ]);
+            'X-Content-Type-Options' => 'nosniff',
+        ];
+
+        return $this->media->isImagePath($path)
+            ? response()->file($path, $headers)
+            : response()->download($path, basename($filename), $headers);
     }
 
     private function generateToken(): string
@@ -164,7 +168,7 @@ class ShareController extends Controller
     private function withSharedMediaUrls(SharedNote $share, string $content): string
     {
         $baseUrl = preg_quote(rtrim(url('/'), '/'), '/');
-        $pattern = '/(!\[[^\]]*\]\()\s*(?:'.$baseUrl.')?\/media\/([a-z0-9]{24}\.(?:jpg|png|gif|webp))(\))/i';
+        $pattern = '/(!?\[[^\]]*\]\()\s*(?:'.$baseUrl.')?\/media\/([a-z0-9]{24}\.[a-z0-9]{1,10})(\))/i';
 
         return preg_replace_callback($pattern, function (array $matches) use ($share): string {
             return $matches[1].route('shares.media', [
@@ -179,6 +183,6 @@ class ShareController extends Controller
         $baseUrl = preg_quote(rtrim(url('/'), '/'), '/');
         $filename = preg_quote($filename, '/');
 
-        return preg_match('/!\[[^\]]*\]\(\s*(?:'.$baseUrl.')?\/media\/'.$filename.'\)/i', $content) === 1;
+        return preg_match('/!?\[[^\]]*\]\(\s*(?:'.$baseUrl.')?\/media\/'.$filename.'\)/i', $content) === 1;
     }
 }

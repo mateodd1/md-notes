@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\NoteSpace;
 use App\Services\NoteMedia;
 use App\Services\NoteVersionHistory;
+use App\Services\StorageQuota;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ class NotesController extends Controller
         private readonly NoteSpace $spaces,
         private readonly NoteVersionHistory $history,
         private readonly NoteMedia $media,
+        private readonly StorageQuota $quota,
     )
     {
     }
@@ -170,6 +172,42 @@ class NotesController extends Controller
         ]);
     }
 
+    public function reorderFolder(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'source' => ['required', 'string', 'max:500'],
+            'target' => ['required', 'string', 'max:500'],
+            'position' => ['required', 'in:before,after'],
+            'active_path' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $path = $this->spaces->reorderFolder($request->user(), $data['source'], $data['target'], $data['position']);
+        } catch (RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        $this->relocateSharedNotes($request->user(), $data['source'], $path);
+        $this->history->relocate($request->user(), $data['source'], $path);
+
+        $activePath = $data['active_path'] ?? '';
+        if ($activePath === $data['source']) {
+            $activePath = $path;
+        } elseif (Str::startsWith($activePath, $data['source'].'/')) {
+            $activePath = $path.Str::after($activePath, $data['source']);
+        }
+
+        return response()->json([
+            'path' => $path,
+            'activePath' => $activePath,
+            'tree' => view('notes._tree', [
+                'nodes' => $this->spaces->tree($request->user()),
+                'path' => $activePath,
+            ])->render(),
+            'message' => __('ui.folder_reordered'),
+        ]);
+    }
+
     public function rename(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -253,6 +291,7 @@ class NotesController extends Controller
             'content' => $content,
             'title' => $path === null ? __('ui.your_notes') : Str::beforeLast(basename($path), '.'),
             'rendered' => $path === null ? '' : Str::markdown($content, ['html_input' => 'strip', 'allow_unsafe_links' => false]),
+            'quota' => $this->quota->summary($request->user()),
         ]);
     }
 }

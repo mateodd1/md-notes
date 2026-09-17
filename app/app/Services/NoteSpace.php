@@ -11,6 +11,8 @@ class NoteSpace
 {
     private const NOTE_ORDER_FILE = '.md-notes-order.json';
 
+    private const FOLDER_ORDER_FILE = '.md-notes-folder-order.json';
+
     public function __construct(private readonly ?string $basePath = null)
     {
     }
@@ -31,7 +33,7 @@ class NoteSpace
     {
         $root = $this->root($user);
 
-        return $this->scan($root, '', $this->readNoteOrder($root));
+        return $this->scan($root, '', $this->readNoteOrder($root), $this->readFolderOrder($root));
     }
 
     public function read(User $user, string $path): string
@@ -54,6 +56,8 @@ class NoteSpace
             throw new RuntimeException(__('ui.destination_folder_unavailable'));
         }
 
+        $this->quota()->ensureCanReplace($user, $this->root($user), $file, strlen($content));
+
         file_put_contents($file, $content, LOCK_EX);
     }
 
@@ -71,6 +75,7 @@ class NoteSpace
         }
 
         $created = ! is_file($file);
+        $this->quota()->ensureCanReplace($user, $this->root($user), $file, strlen($content));
         if (file_put_contents($file, $content, LOCK_EX) === false) {
             throw new RuntimeException(__('ui.could_not_save'));
         }
@@ -109,7 +114,9 @@ class NoteSpace
             throw new RuntimeException(__('ui.note_already_exists'));
         }
 
-        file_put_contents($file, '# '.$name."\n\n", LOCK_EX);
+        $content = '# '.$name."\n\n";
+        $this->quota()->ensureCanReplace($user, $this->root($user), $file, strlen($content));
+        file_put_contents($file, $content, LOCK_EX);
 
         return $relativePath;
     }
@@ -159,6 +166,7 @@ class NoteSpace
 
         $targetRelative = ltrim(substr($target, strlen($root)), '/');
         $this->relocateNoteOrder($user, $sourceRelative, $targetRelative);
+        $this->relocateFolderOrder($user, $sourceRelative, $targetRelative);
 
         return $targetRelative;
     }
@@ -209,6 +217,7 @@ class NoteSpace
         }
 
         $this->removeFromNoteOrder($user, $relativePath);
+        $this->removeFromFolderOrder($user, $relativePath);
     }
 
     public function move(User $user, string $sourcePath, string $destinationPath): string
@@ -245,6 +254,7 @@ class NoteSpace
 
         $targetRelative = ltrim(substr($target, strlen($root)), '/');
         $this->relocateNoteOrder($user, $sourceRelative, $targetRelative);
+        $this->relocateFolderOrder($user, $sourceRelative, $targetRelative);
 
         return $targetRelative;
     }
@@ -285,6 +295,45 @@ class NoteSpace
         return $sourceRelative;
     }
 
+    public function reorderFolder(User $user, string $sourcePath, string $targetPath, string $position): string
+    {
+        $sourceRelative = $this->normalize($sourcePath);
+        $targetRelative = $this->normalize($targetPath);
+        $root = $this->root($user);
+        $source = $root.'/'.$sourceRelative;
+        $target = $root.'/'.$targetRelative;
+        $this->assertContained($root, $source, true);
+        $this->assertContained($root, $target, true);
+
+        if (! is_dir($source) || ! is_dir($target) || $sourceRelative === $targetRelative) {
+            abort(404);
+        }
+
+        $targetParent = $this->parentPath($targetRelative);
+        if ($this->parentPath($sourceRelative) !== $targetParent) {
+            $sourceRelative = $this->move($user, $sourceRelative, $targetParent);
+        }
+
+        $order = $this->readFolderOrder($root);
+        $siblings = $this->sortNodes(
+            $this->folderNodes($this->directFolderPaths($root, $targetParent)),
+            $order[$targetParent] ?? [],
+        );
+        $paths = array_column($siblings, 'path');
+
+        $paths = array_values(array_filter($paths, fn (string $path): bool => $path !== $sourceRelative));
+        $targetIndex = array_search($targetRelative, $paths, true);
+        if ($targetIndex === false) {
+            abort(404);
+        }
+
+        array_splice($paths, $targetIndex + ($position === 'after' ? 1 : 0), 0, [$sourceRelative]);
+        $order[$targetParent] = $paths;
+        $this->writeFolderOrder($root, $order);
+
+        return $sourceRelative;
+    }
+
     public function importLegacySpace(User $user): void
     {
         $destination = $this->root($user);
@@ -319,7 +368,7 @@ class NoteSpace
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function scan(string $directory, string $prefix = '', array $noteOrder = []): array
+    private function scan(string $directory, string $prefix = '', array $noteOrder = [], array $folderOrder = []): array
     {
         $folders = [];
         $files = [];
@@ -331,13 +380,13 @@ class NoteSpace
 
             $relative = $prefix === '' ? $entry : $prefix.'/'.$entry;
             if (is_dir($directory.'/'.$entry)) {
-                $folders[] = ['type' => 'folder', 'name' => $entry, 'path' => $relative, 'children' => $this->scan($directory.'/'.$entry, $relative, $noteOrder)];
+                $folders[] = ['type' => 'folder', 'name' => $entry, 'path' => $relative, 'children' => $this->scan($directory.'/'.$entry, $relative, $noteOrder, $folderOrder)];
             } elseif (Str::endsWith(Str::lower($entry), '.md')) {
                 $files[] = ['type' => 'note', 'name' => Str::beforeLast($entry, '.'), 'path' => $relative];
             }
         }
 
-        usort($folders, fn (array $a, array $b): int => strnatcasecmp($a['name'], $b['name']));
+        $folders = $this->sortNodes($folders, $folderOrder[$prefix] ?? []);
         $files = $this->sortNodes($files, $noteOrder[$prefix] ?? []);
 
         return [...$files, ...$folders];
@@ -372,6 +421,16 @@ class NoteSpace
         return array_column($this->sortNodes($nodes, $order), 'path');
     }
 
+    /** @param array<int, string> $paths @return array<int, array{type: string, name: string, path: string}> */
+    private function folderNodes(array $paths): array
+    {
+        return array_map(fn (string $path): array => [
+            'type' => 'folder',
+            'name' => basename($path),
+            'path' => $path,
+        ], $paths);
+    }
+
     /** @return array<int, string> */
     private function directNotePaths(string $root, string $parent): array
     {
@@ -380,6 +439,21 @@ class NoteSpace
 
         foreach (scandir($directory) ?: [] as $entry) {
             if (Str::endsWith(Str::lower($entry), '.md') && is_file($directory.'/'.$entry)) {
+                $paths[] = $parent === '' ? $entry : $parent.'/'.$entry;
+            }
+        }
+
+        return $paths;
+    }
+
+    /** @return array<int, string> */
+    private function directFolderPaths(string $root, string $parent): array
+    {
+        $directory = $parent === '' ? $root : $root.'/'.$parent;
+        $paths = [];
+
+        foreach (scandir($directory) ?: [] as $entry) {
+            if ($entry !== '.' && $entry !== '..' && $entry !== '.md-notes-media' && is_dir($directory.'/'.$entry) && ! is_link($directory.'/'.$entry)) {
                 $paths[] = $parent === '' ? $entry : $parent.'/'.$entry;
             }
         }
@@ -487,6 +561,108 @@ class NoteSpace
             : $path;
     }
 
+    /** @return array<string, array<int, string>> */
+    private function readFolderOrder(string $root): array
+    {
+        return $this->readOrderFile($root.'/'.self::FOLDER_ORDER_FILE);
+    }
+
+    /** @param array<string, array<int, string>> $order */
+    private function writeFolderOrder(string $root, array $order): void
+    {
+        $this->writeOrderFile($root.'/'.self::FOLDER_ORDER_FILE, $order);
+    }
+
+    private function relocateFolderOrder(User $user, string $sourcePath, string $destinationPath): void
+    {
+        $root = $this->root($user);
+        $this->writeFolderOrder($root, $this->relocatedOrder(
+            $this->readFolderOrder($root),
+            $sourcePath,
+            $destinationPath,
+        ));
+    }
+
+    private function removeFromFolderOrder(User $user, string $path): void
+    {
+        $root = $this->root($user);
+        $this->writeFolderOrder($root, $this->orderWithoutPath($this->readFolderOrder($root), $path));
+    }
+
+    /** @return array<string, array<int, string>> */
+    private function readOrderFile(string $file): array
+    {
+        $content = @file_get_contents($file);
+        $decoded = is_string($content) ? json_decode($content, true) : null;
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $order = [];
+        foreach ($decoded as $parent => $paths) {
+            if (is_string($parent) && is_array($paths)) {
+                $order[$parent] = array_values(array_unique(array_filter($paths, 'is_string')));
+            }
+        }
+
+        return $order;
+    }
+
+    /** @param array<string, array<int, string>> $order */
+    private function writeOrderFile(string $file, array $order): void
+    {
+        $cleanOrder = [];
+        foreach ($order as $parent => $paths) {
+            $paths = array_values(array_unique(array_filter($paths, 'is_string')));
+            if ($paths !== []) {
+                $cleanOrder[$parent] = $paths;
+            }
+        }
+
+        if ($cleanOrder === []) {
+            if (is_file($file) && ! unlink($file)) {
+                throw new RuntimeException(__('ui.cannot_save_note_order'));
+            }
+
+            return;
+        }
+
+        if (file_put_contents($file, json_encode($cleanOrder, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), LOCK_EX) === false) {
+            throw new RuntimeException(__('ui.cannot_save_note_order'));
+        }
+    }
+
+    /** @param array<string, array<int, string>> $order @return array<string, array<int, string>> */
+    private function relocatedOrder(array $order, string $sourcePath, string $destinationPath): array
+    {
+        $relocated = [];
+        foreach ($order as $parent => $paths) {
+            $newParent = $this->relocateOrderPath($parent, $sourcePath, $destinationPath);
+            $relocated[$newParent] = array_merge($relocated[$newParent] ?? [], array_map(
+                fn (string $path): string => $this->relocateOrderPath($path, $sourcePath, $destinationPath),
+                $paths,
+            ));
+        }
+
+        return $relocated;
+    }
+
+    /** @param array<string, array<int, string>> $order @return array<string, array<int, string>> */
+    private function orderWithoutPath(array $order, string $path): array
+    {
+        foreach ($order as $parent => $paths) {
+            if ($parent === $path || Str::startsWith($parent, $path.'/')) {
+                unset($order[$parent]);
+                continue;
+            }
+
+            $order[$parent] = array_values(array_filter($paths, fn (string $item): bool => $item !== $path && ! Str::startsWith($item, $path.'/')));
+        }
+
+        return $order;
+    }
+
     private function filePath(User $user, string $path, bool $mustExist = true): string
     {
         $normalized = $this->normalize($path);
@@ -545,7 +721,9 @@ class NoteSpace
         }
 
         foreach ($segments as $segment) {
-            if (! preg_match('/^[\\pL\\pN][\\pL\\pN _().,!&-]{0,79}(?:\\.md)?$/u', $segment)) {
+            // This directory can remain in spaces imported before legacy
+            // SilverBullet plug folders were excluded from imports.
+            if ($segment !== '_plug' && ! preg_match('/^[\\pL\\pN][\\pL\\pN _().,!&-]{0,79}(?:\\.md)?$/u', $segment)) {
                 abort(404);
             }
         }
@@ -561,5 +739,10 @@ class NoteSpace
         if ($candidate === false || $realRoot === false || (! Str::startsWith($candidate, $realRoot.'/') && $candidate !== $realRoot)) {
             abort(404);
         }
+    }
+
+    private function quota(): StorageQuota
+    {
+        return app(StorageQuota::class);
     }
 }

@@ -6,6 +6,8 @@ Documento de referencia para mantener y ampliar la aplicación. No contiene cont
 
 `md-notes` es el espacio privado de apuntes de Mateo, disponible en `https://md.mateo.ovh`. Guarda notas Markdown reales (`.md`) y las organiza en carpetas, con una interfaz de edición y previsualización simultánea.
 
+La raíz pública (/) es una landing bilingüe con presentación y llamadas a crear cuenta o iniciar sesión; el espacio de trabajo autenticado vive bajo /app.
+
 ## Arquitectura y despliegue
 
 - Código y Compose: `/root/docker/md-notes`.
@@ -16,6 +18,7 @@ Documento de referencia para mantener y ampliar la aplicación. No contiene cont
 - Base de datos de producción: MySQL, con volumen persistente `mysql/`. Las credenciales viven en `db.env` (modo 600) y en el `.env` no versionado de Laravel; nunca se deben incluir en documentación ni salidas de terminal.
 - La antigua `app/database/database.sqlite` se conserva solo como origen/recuperación de la migración. Hay una copia previa a MySQL en `migration-backups/`.
 - Cada espacio de notas está físicamente aislado en `data/{id-de-usuario}/`.
+- Cada usuario tiene `storage_quota_bytes`, con valor por defecto de 100 MiB. La migración es `2026_09_17_000006_add_storage_quota_to_users_table.php`.
 
 Para aplicar cambios de PHP, Blade o rutas:
 
@@ -41,15 +44,15 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 
 ## Notas, carpetas y navegación
 
-- Las notas usan rutas directas, por ejemplo `https://md.mateo.ovh/Clase/tema-1.md`; no hay prefijo `/nota`.
-- Las rutas de la aplicación están en inglés y no se mantienen las antiguas: `/login`, `/singup`, `/forgot-password`, `/reset-password`, `/settings`, `/shared`, `/history`, `/versions`, `/download`, `/media`, `/folders`, `/notes`, `/organize` e `/item`.
+- Las notas usan rutas directas dentro del espacio de trabajo, por ejemplo `https://md.mateo.ovh/app/Clase/tema-1.md`; no hay prefijo `/nota`.
+- Las rutas públicas de autenticación están en inglés: `/login`, `/singup`, `/forgot-password` y `/reset-password`. Las funciones autenticadas del espacio de trabajo (notas, carpetas, ajustes, adjuntos, historial, descargas y enlaces gestionados) se agrupan bajo `/app`.
 - Panel lateral con árbol de carpetas y ficheros `.md`.
-- En cada nivel del árbol, los archivos `.md` aparecen antes que las carpetas; ambos grupos se ordenan alfabéticamente.
+- En cada nivel del árbol, los archivos `.md` aparecen antes que las carpetas. Ambos grupos admiten orden manual independiente por arrastre y conservan ese orden por usuario y carpeta.
 - En móvil, el árbol se abre desde el botón “☰ Notas” como un cajón lateral; se puede cerrar tocando fuera, con Escape o al abrir una nota.
 - Creación de carpetas, subcarpetas y notas tanto desde los botones como con clic derecho sobre una carpeta o sobre un hueco vacío del árbol.
 - El campo “Dentro de” de los modales de creación es un selector propio con árbol desplegable, no un `<select>` nativo. Sus parciales son `notes._parent-picker` y `notes._parent-options`.
 - Menú contextual para renombrar, borrar y compartir una nota. Las confirmaciones de borrado usan modales de la propia interfaz.
-- Arrastrar y soltar permite reorganizar notas y carpetas, incluida la raíz. Al arrastrar una nota sobre la mitad superior o inferior de otra se conserva un orden manual antes/después por carpeta y usuario, persistido en el archivo privado `.md-notes-order.json`. El árbol se actualiza sin recargar la página completa.
+- Arrastrar y soltar permite reorganizar notas y carpetas, incluida la raíz: el destino visible “Raíz” y cualquier espacio vacío del panel lateral permiten sacar elementos de una subcarpeta. Al arrastrar una nota o carpeta sobre la mitad superior o inferior de otra del mismo tipo se conserva un orden manual antes/después por carpeta y usuario, persistido respectivamente en los archivos privados `.md-notes-order.json` y `.md-notes-folder-order.json`. El árbol se actualiza sin recargar la página completa.
 - Abrir otra nota usa navegación dinámica: guarda primero la nota actual y cambia editor, vista previa, título, URL y árbol sin el destello de una recarga total.
 - Autoguardado periódico y guardado manual. El contenido admite hasta 5 MiB de texto, para apuntes grandes.
 - Cada creación o guardado con cambios conserva una versión privada de la nota. Se retienen como máximo 50 por nota y las que superan 7 días se eliminan automáticamente (la limpieza global se ejecuta cada hora).
@@ -63,11 +66,13 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 - Las notas se abren en modo lectura, con el Markdown renderizado a ancho completo. “Editar” abre el editor y la vista previa; “Lectura” guarda y vuelve al documento formateado.
 - Diseño responsive con editor y previsualización Markdown.
 - El editor ofrece controles Markdown para títulos H1/H2/H3, negrita, cursiva, citas, listas, enlaces y código. Se aplican sobre el texto seleccionado.
-- Al pegar una imagen desde el portapapeles dentro del editor (`Ctrl+V` o pegar), la imagen se sube al espacio privado del usuario y se inserta su referencia Markdown. Se aceptan JPEG, PNG, GIF y WebP hasta 5 MiB.
-- Los adjuntos se guardan ocultos en `.md-notes-media` dentro del espacio de cada usuario y se sirven mediante una ruta autenticada `/media/{filename}`; no aparecen como carpetas en el árbol.
+- Al pegar una imagen desde el portapapeles dentro del editor (`Ctrl+V` o pegar), se sube al espacio privado y se inserta su referencia Markdown. El botón de clip y el arrastre sobre el editor permiten adjuntar cualquier tipo de archivo. Cada adjunto admite hasta 10 MiB.
+- Los adjuntos se guardan ocultos en `.md-notes-media` dentro del espacio de cada usuario y se sirven mediante una ruta autenticada `/media/{filename}`; no aparecen como carpetas en el árbol. Las imágenes se muestran en línea; el resto se descarga con un enlace Markdown.
+- `StorageQuota` calcula el espacio físico de Markdown y adjuntos del usuario (sin contar los metadatos de orden) antes de guardar una nota o mover un archivo adjunto. Si se superan 100 MiB, el cambio se rechaza. La cuota y el uso actual se muestran en la barra lateral y en Perfil.
 - Las imágenes renderizadas se limitan al ancho disponible y muestran un botón de descarga al pasar el cursor (siempre visible en pantallas táctiles). Los enlaces Markdown se muestran con color, peso y subrayado diferenciados.
 - Al guardar una nota se eliminan los adjuntos que ya no estén referenciados por ninguna nota ni versión retenida del mismo usuario; al borrar notas o carpetas también se elimina cualquier adjunto que quede huérfano. Los `.md` se eliminan físicamente mediante `unlink` y las carpetas de forma recursiva y contenida en el espacio del usuario. Una imagen necesaria para restaurar una versión se conserva solo durante la retención de ese historial; la limpieza global horaria libera las que dejan de estar referenciadas al caducar dicha versión.
 - En el perfil se puede elegir “Según el sistema”, modo claro o modo oscuro.
+- La interfaz usa una paleta de grises fríos y azul cian inspirada en `xdp.es`, con fondos claros `#f8fafc` / oscuros `#0e0f12`, tarjetas sobrias y un favicon vectorial de la estrella de md-notes (`public/favicon.svg`).
 - “Según el sistema” es la opción predeterminada: sigue `prefers-color-scheme` y responde a cambios del sistema mientras la página está abierta.
 - La preferencia se guarda localmente en el navegador bajo `md-notes-theme`.
 - Las notificaciones de la zona de notas aparecen como una ventana flotante inferior y se ocultan tras tres segundos.
@@ -82,7 +87,7 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 - Las URLs públicas tienen la forma `https://md.mateo.ovh/share/ABCDE`.
 - Cada token tiene cinco caracteres y usa `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, evitando `0/O` e `1/I`.
 - Las rutas públicas son de solo lectura, están limitadas por tasa y verifican la caducidad antes de mostrar el Markdown.
-- Las imágenes de una nota compartida se reescriben a `/share/{token}/media/{filename}`. Esa ruta comprueba que el enlace siga activo y que el adjunto esté referenciado por la nota compartida, por lo que no requiere sesión ni expone otros adjuntos privados del propietario.
+- Las imágenes y archivos de una nota compartida se reescriben a `/share/{token}/media/{filename}`. Esa ruta comprueba que el enlace siga activo y que el adjunto esté referenciado por la nota compartida, por lo que no requiere sesión ni expone otros adjuntos privados del propietario.
 - El perfil incluye “Compartidos”, donde cada usuario ve exclusivamente sus enlaces, puede copiarlo, cambiar su duración y revocarlo mediante una confirmación visual.
 - La tabla `shared_notes` contiene usuario propietario, ruta, token, caducidad y marcas de tiempo. La migración correspondiente es `2026_09_16_000002_create_shared_notes_table.php`.
 
@@ -90,7 +95,7 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 
 - El menú de perfil incluye “Configuración”, desde donde cada usuario puede cambiar su nombre, contraseña o borrar permanentemente su cuenta. El correo no se puede cambiar desde la plataforma.
 - Para cambiar contraseña se solicita primero un código de seis cifras por correo. El código solo contiene un hash en base de datos, caduca a los 15 minutos y no requiere la contraseña anterior.
-- `profile_verification_codes` es la tabla de estos códigos y la migración es `2026_09_16_000004_create_profile_verification_codes_table.php`. Las rutas son `POST /settings/password/code` y `PATCH /settings/password`.
+- `profile_verification_codes` es la tabla de estos códigos y la migración es `2026_09_16_000004_create_profile_verification_codes_table.php`. Las rutas son `POST /app/settings/password/code` y `PATCH /app/settings/password`.
 - El borrado exige la contraseña actual y elimina el espacio Markdown, el usuario, sus versiones y sus enlaces compartidos.
 - El perfil incluye “Acceso API” (excepto en demo) para crear y revocar tokens personales. El secreto solo se muestra al crearlo y en la base de datos solo se guarda su hash.
 - La API usa `Authorization: Bearer mdn_...` y `PUT /api/notes/{ruta}.md` (máximo 5 MiB). El cuerpo se envía como Markdown crudo, crea las carpetas que falten, crea o actualiza el archivo y registra su historial. Ejemplo: `curl --fail-with-body -X PUT -H "Authorization: Bearer TU_TOKEN" --data-binary @apuntes.md https://md.mateo.ovh/api/notes/Clase/apuntes.md`.
@@ -106,9 +111,10 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 
 ## Copias de seguridad
 
-- El temporizador de sistema `silverbullet-backup.timer` está habilitado y se ejecuta cada minuto.
-- Su servicio asociado es `silverbullet-backup.service`, que invoca `/usr/local/sbin/backup-silverbullet` para las copias cifradas hacia Backblaze B2.
-- El script conserva las notas por usuario y genera antes un volcado lógico consistente de MySQL (`md-notes/database.sql`) con `mysqldump`; ya no copia SQLite como base de datos activa. El volcado temporal se limpia al acabar. Usa `--skip-dump-date` y `rclone --checksum`, por lo que la comprobación por minuto no sube otra copia de MySQL cuando su contenido no ha cambiado.
+- `md-notes-local-backup.timer` está habilitado y ejecuta `/usr/local/sbin/backup-md-notes-local` cada cinco minutos. Genera un estado local actual en `/var/backups/md-notes/current` y una instantánea solo cuando cambian contenido, permisos, altas o bajas; las marcas de tiempo efímeras del volcado no crean instantáneas en `/var/backups/md-notes/snapshots`.
+- Las instantáneas locales usan enlaces físicos para reutilizar archivos sin cambios, incluyen el espacio de notas, adjuntos, SilverBullet heredado, `db.env`, `app/.env`, `compose.yml` y un volcado lógico consistente de MySQL (`md-notes/database.sql`). Se conservan 30 días y todo el árbol está restringido a `root` (directorios 700, ficheros 600). El script aborta sin modificar la copia si quedan menos de 5 GiB libres.
+- El temporizador `silverbullet-backup.timer` conserva su nombre heredado, pero ahora se ejecuta solo a `:30` de cada hora. Su servicio invoca `/usr/local/sbin/backup-silverbullet`, actualiza primero la copia local y sincroniza ese único estado hacia el remoto cifrado `crypt-silverbullet`, dejando las sustituciones en `crypt-silverbullet:history`.
+- El volcado MySQL usa `--single-transaction`, `--routines`, `--events`, `--no-tablespaces`, `--skip-dump-date` y `--set-gtid-purged=OFF`. La subida remota comprueba después el estado con `rclone check`.
 - Si Backblaze devuelve un límite de transacciones o una cuota agotada, las copias remotas no podrán completar hasta resolverlo en Backblaze. La aplicación y sus datos locales siguen operativos.
 - Antes de tocar datos productivos, hacer una copia recuperable de MySQL (volcado lógico) y de `data/`. Mantener también la SQLite heredada mientras sea útil para recuperación.
 
@@ -123,6 +129,6 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 
 ## Puntos de extensión recomendados
 
-- Si se necesitan adjuntos, guardarlos por usuario bajo el mismo espacio privado y protegerlos con rutas autenticadas; no exponer directamente el volumen `data`.
+- Los adjuntos deben seguir guardándose por usuario bajo el mismo espacio privado y protegidos por rutas autenticadas; no exponer directamente el volumen `data`. Cualquier nueva vía de escritura debe pasar por `StorageQuota`.
 - Para colaboración en tiempo real entre navegadores o usuarios haría falta introducir eventos (por ejemplo, broadcasting/WebSockets); la actualización dinámica actual evita recargas completas en las acciones realizadas desde la propia pestaña.
 - Si el número de notas o el tamaño de los adjuntos crece mucho, revisar cuota de disco, límites de PHP/Apache y la política de B2.

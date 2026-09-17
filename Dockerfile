@@ -8,6 +8,12 @@ RUN apt-get update \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 
+RUN { \
+        echo 'upload_max_filesize = 10M'; \
+        echo 'post_max_size = 12M'; \
+        echo 'max_file_uploads = 10'; \
+    } > /usr/local/etc/php/conf.d/md-notes-uploads.ini
+
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 COPY docker/apache-vhost.conf /etc/apache2/sites-available/000-default.conf
 COPY docker/entrypoint.sh /usr/local/bin/md-notes-entrypoint

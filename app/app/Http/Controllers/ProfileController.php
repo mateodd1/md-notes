@@ -6,6 +6,7 @@ use App\Models\ApiToken;
 use App\Services\ApiTokens;
 use App\Services\NoteSpace;
 use App\Services\ProfileVerificationCodes;
+use App\Services\StorageQuota;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +21,7 @@ class ProfileController extends Controller
         private readonly NoteSpace $spaces,
         private readonly ProfileVerificationCodes $verificationCodes,
         private readonly ApiTokens $apiTokens,
+        private readonly StorageQuota $quota,
     )
     {
     }
@@ -33,6 +35,7 @@ class ProfileController extends Controller
         return view('profile.edit', [
             'user' => $request->user(),
             'apiTokens' => $this->apiTokens->forUser($request->user()),
+            'quota' => $this->quota->summary($request->user()),
         ]);
     }
 

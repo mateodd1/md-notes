@@ -17,20 +17,28 @@ class NoteMedia
         'image/webp' => 'webp',
     ];
 
-    public function __construct(private readonly NoteSpace $spaces)
+    private const FILENAME_PATTERN = '/^[a-z0-9]{24}\.[a-z0-9]{1,10}$/';
+
+    public function __construct(
+        private readonly NoteSpace $spaces,
+        private readonly StorageQuota $quota,
+    )
     {
     }
 
-    public function store(User $user, UploadedFile $image): string
+    public function store(User $user, UploadedFile $file): string
     {
-        $extension = self::EXTENSIONS[$image->getMimeType()];
+        $root = $this->spaces->root($user);
+        $this->quota->ensureCanAdd($user, $root, (int) $file->getSize());
+
+        $extension = $this->extensionFor($file);
         $directory = $this->directory($user);
         $filename = Str::lower(Str::random(24)).'.'.$extension;
 
         try {
-            $image->move($directory, $filename);
+            $file->move($directory, $filename);
         } catch (\Throwable $exception) {
-            throw new RuntimeException(__('ui.cannot_save_image'), previous: $exception);
+            throw new RuntimeException(__('ui.cannot_save_attachment'), previous: $exception);
         }
 
         return $filename;
@@ -38,7 +46,7 @@ class NoteMedia
 
     public function path(User $user, string $filename): string
     {
-        if (! preg_match('/^[a-z0-9]{24}\.(?:jpg|png|gif|webp)$/', $filename)) {
+        if (! preg_match(self::FILENAME_PATTERN, $filename)) {
             abort(404);
         }
 
@@ -48,6 +56,11 @@ class NoteMedia
         }
 
         return $path;
+    }
+
+    public function isImagePath(string $path): bool
+    {
+        return array_key_exists((string) mime_content_type($path), self::EXTENSIONS);
     }
 
     public function pruneUnreferenced(User $user): int
@@ -62,7 +75,7 @@ class NoteMedia
         $removed = 0;
 
         foreach (scandir($directory) ?: [] as $filename) {
-            if ($filename === '.' || $filename === '..' || ! preg_match('/^[a-z0-9]{24}\.(?:jpg|png|gif|webp)$/', $filename)) {
+            if ($filename === '.' || $filename === '..' || ! preg_match(self::FILENAME_PATTERN, $filename)) {
                 continue;
             }
 
@@ -98,7 +111,7 @@ class NoteMedia
                 continue;
             }
 
-            preg_match_all('/(?<![a-z0-9])[a-z0-9]{24}\.(?:jpg|png|gif|webp)(?![a-z0-9])/i', $content, $matches);
+            preg_match_all('/(?<![a-z0-9])[a-z0-9]{24}\.[a-z0-9]{1,10}(?![a-z0-9])/i', $content, $matches);
             foreach ($matches[0] as $filename) {
                 $referenced[Str::lower($filename)] = true;
             }
@@ -109,7 +122,7 @@ class NoteMedia
             ->orderBy('id')
             ->cursor()
             ->each(function (NoteVersion $version) use (&$referenced): void {
-                preg_match_all('/(?<![a-z0-9])[a-z0-9]{24}\.(?:jpg|png|gif|webp)(?![a-z0-9])/i', $version->content, $matches);
+                preg_match_all('/(?<![a-z0-9])[a-z0-9]{24}\.[a-z0-9]{1,10}(?![a-z0-9])/i', $version->content, $matches);
                 foreach ($matches[0] as $filename) {
                     $referenced[Str::lower($filename)] = true;
                 }
@@ -127,5 +140,17 @@ class NoteMedia
         }
 
         return $directory;
+    }
+
+    private function extensionFor(UploadedFile $file): string
+    {
+        $mime = (string) $file->getMimeType();
+        if (isset(self::EXTENSIONS[$mime])) {
+            return self::EXTENSIONS[$mime];
+        }
+
+        $extension = Str::lower($file->getClientOriginalExtension());
+
+        return preg_match('/^[a-z0-9]{1,10}$/', $extension) ? $extension : 'bin';
     }
 }
