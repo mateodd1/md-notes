@@ -35,7 +35,7 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 ## Cuentas y seguridad
 
 - Registro, inicio y cierre de sesión propios de Laravel.
-- Las contraseñas se validan con un mínimo de 12 caracteres y se guardan mediante hash.
+- El registro exige nombre de al menos 3 caracteres, correo con formato RFC válido y contraseña de al menos 8 caracteres; las contraseñas se guardan mediante hash. El restablecimiento y el cambio desde Perfil comparten el mínimo de 8 caracteres.
 - Restablecimiento de contraseña por correo, usando la configuración SMTP de `.env`.
 - No hay panel de administración de usuarios ni Filament: la dependencia, proveedor, recursos y enlace de interfaz se han eliminado. La antigua columna `is_admin` puede permanecer en bases ya migradas por compatibilidad de esquema, pero no se usa.
 - `NoteSpace` valida y normaliza rutas para impedir que un usuario salga de su propia carpeta.
@@ -66,9 +66,10 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 - Las notas se abren en modo lectura, con el Markdown renderizado a ancho completo. “Editar” abre el editor y la vista previa; “Lectura” guarda y vuelve al documento formateado.
 - Diseño responsive con editor y previsualización Markdown.
 - El editor ofrece controles Markdown para títulos H1/H2/H3, negrita, cursiva, citas, listas, enlaces y código. Se aplican sobre el texto seleccionado.
-- Al pegar una imagen desde el portapapeles dentro del editor (`Ctrl+V` o pegar), se sube al espacio privado y se inserta su referencia Markdown. El botón de clip y el arrastre sobre el editor permiten adjuntar cualquier tipo de archivo. Cada adjunto admite hasta 10 MiB.
-- Los adjuntos se guardan ocultos en `.md-notes-media` dentro del espacio de cada usuario y se sirven mediante una ruta autenticada `/media/{filename}`; no aparecen como carpetas en el árbol. Las imágenes se muestran en línea; el resto se descarga con un enlace Markdown.
+- Al pegar archivos desde el portapapeles dentro del editor (incluidas imágenes con `Ctrl+V`) o soltarlos sobre este, se suben al espacio privado y se insertan como Markdown. El botón de clip permite seleccionar varios adjuntos; la subida se procesa en cola y muestra una notificación inferior con progreso. Cada adjunto admite hasta 10 MiB.
+- Los adjuntos se guardan ocultos en `.md-notes-media` dentro del espacio de cada usuario y se sirven mediante la ruta autenticada actual `/app/media/{filename}`. La ruta autenticada histórica `/media/{filename}` se conserva para que las notas ya existentes no pierdan sus imágenes; no aparecen como carpetas en el árbol. Las imágenes se muestran en línea; el resto se descarga con un enlace Markdown.
 - `StorageQuota` calcula el espacio físico de Markdown y adjuntos del usuario (sin contar los metadatos de orden) antes de guardar una nota o mover un archivo adjunto. Si se superan 100 MiB, el cambio se rechaza. La cuota y el uso actual se muestran en la barra lateral y en Perfil.
+- El medidor de almacenamiento de la barra lateral se refresca por AJAX cada minuto mientras la pestaña está visible, y también al volver a ella, mediante `GET /app/quota`; no recarga la nota abierta.
 - Las imágenes renderizadas se limitan al ancho disponible y muestran un botón de descarga al pasar el cursor (siempre visible en pantallas táctiles). Los enlaces Markdown se muestran con color, peso y subrayado diferenciados.
 - Al guardar una nota se eliminan los adjuntos que ya no estén referenciados por ninguna nota ni versión retenida del mismo usuario; al borrar notas o carpetas también se elimina cualquier adjunto que quede huérfano. Los `.md` se eliminan físicamente mediante `unlink` y las carpetas de forma recursiva y contenida en el espacio del usuario. Una imagen necesaria para restaurar una versión se conserva solo durante la retención de ese historial; la limpieza global horaria libera las que dejan de estar referenciadas al caducar dicha versión.
 - En el perfil se puede elegir “Según el sistema”, modo claro o modo oscuro.
@@ -87,7 +88,7 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 - Las URLs públicas tienen la forma `https://md.mateo.ovh/share/ABCDE`.
 - Cada token tiene cinco caracteres y usa `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, evitando `0/O` e `1/I`.
 - Las rutas públicas son de solo lectura, están limitadas por tasa y verifican la caducidad antes de mostrar el Markdown.
-- Las imágenes y archivos de una nota compartida se reescriben a `/share/{token}/media/{filename}`. Esa ruta comprueba que el enlace siga activo y que el adjunto esté referenciado por la nota compartida, por lo que no requiere sesión ni expone otros adjuntos privados del propietario.
+- Las imágenes y archivos de una nota compartida se reescriben a `/share/{token}/media/{filename}` tanto si el Markdown usa la ruta histórica `/media/...` como la actual `/app/media/...`. Esa ruta comprueba que el enlace siga activo y que el adjunto esté referenciado por la nota compartida, por lo que no requiere sesión ni expone otros adjuntos privados del propietario.
 - El perfil incluye “Compartidos”, donde cada usuario ve exclusivamente sus enlaces, puede copiarlo, cambiar su duración y revocarlo mediante una confirmación visual.
 - La tabla `shared_notes` contiene usuario propietario, ruta, token, caducidad y marcas de tiempo. La migración correspondiente es `2026_09_16_000002_create_shared_notes_table.php`.
 
@@ -98,6 +99,7 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 - `profile_verification_codes` es la tabla de estos códigos y la migración es `2026_09_16_000004_create_profile_verification_codes_table.php`. Las rutas son `POST /app/settings/password/code` y `PATCH /app/settings/password`.
 - El borrado exige la contraseña actual y elimina el espacio Markdown, el usuario, sus versiones y sus enlaces compartidos.
 - El perfil incluye “Acceso API” (excepto en demo) para crear y revocar tokens personales. El secreto solo se muestra al crearlo y en la base de datos solo se guarda su hash.
+- Perfil incluye “Descargar mis datos”. Genera un ZIP privado con los Markdown, adjuntos, metadatos de orden, historial, enlaces compartidos, perfil y metadatos de tokens API (nunca secretos ni hashes de contraseña). Se solicita como máximo una vez por usuario y día; solo al segundo intento se muestra el aviso. El correo contiene un enlace con token aleatorio de 64 caracteres, guardado únicamente como hash, válido 24 horas. Los ZIP se guardan fuera de la web en `storage/app/private/account-exports`, se eliminan al caducar y al borrar la cuenta. La tabla es `account_exports` y la migración `2026_09_17_000007_create_account_exports_table.php`.
 - La API usa `Authorization: Bearer mdn_...` y `PUT /api/notes/{ruta}.md` (máximo 5 MiB). El cuerpo se envía como Markdown crudo, crea las carpetas que falten, crea o actualiza el archivo y registra su historial. Ejemplo: `curl --fail-with-body -X PUT -H "Authorization: Bearer TU_TOKEN" --data-binary @apuntes.md https://md.mateo.ovh/api/notes/Clase/apuntes.md`.
 - Después de registrarse se envía un correo de bienvenida mediante el SMTP configurado y, si la cuenta nace sin notas importadas, se crea `Bienvenida.md` o `Welcome.md` con un resumen de la plataforma. Si el envío falla, la cuenta y su nota se crean igualmente y el error queda registrado.
 

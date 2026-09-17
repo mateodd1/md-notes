@@ -10,6 +10,16 @@ use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 
+Route::get('/account-export/{token}', [ProfileController::class, 'downloadAccountExport'])
+    ->where('token', '[a-f0-9]{64}')
+    ->middleware('throttle:10,1')
+    ->name('account-exports.download');
+
+Route::get('/media/{filename}', [NoteMediaController::class, 'show'])
+    ->where('filename', '[a-z0-9]{24}\.[a-z0-9]{1,10}')
+    ->middleware('auth')
+    ->name('media.legacy');
+
 Route::get('/share/{token}/media/{filename}', [ShareController::class, 'media'])
     ->where('token', '[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}')
     ->where('filename', '[a-z0-9]{24}\.[a-z0-9]{1,10}')
@@ -32,6 +42,7 @@ Route::post('/logout', [AuthController::class, 'destroy'])->middleware('auth')->
 
 Route::middleware('auth')->prefix('app')->group(function (): void {
     Route::get('/', [NotesController::class, 'index'])->name('notes.index');
+    Route::get('/quota', [NotesController::class, 'quota'])->middleware('throttle:15,1')->name('quota.show');
     Route::post('/folders', [NotesController::class, 'storeFolder'])->name('folders.store');
     Route::post('/notes', [NotesController::class, 'storeNote'])->name('notes.store');
     Route::post('/shares', [ShareController::class, 'store'])->name('shares.store');
@@ -42,6 +53,7 @@ Route::middleware('auth')->prefix('app')->group(function (): void {
     Route::patch('/settings/name', [ProfileController::class, 'updateName'])->name('profile.name');
     Route::post('/settings/api-tokens', [ProfileController::class, 'storeApiToken'])->name('profile.api-tokens.store');
     Route::delete('/settings/api-tokens/{token}', [ProfileController::class, 'destroyApiToken'])->name('profile.api-tokens.destroy');
+    Route::post('/settings/account-export', [ProfileController::class, 'requestAccountExport'])->middleware('throttle:3,1')->name('profile.account-exports.store');
     Route::post('/settings/password/code', [ProfileController::class, 'sendPasswordCode'])->middleware('throttle:3,15')->name('profile.password.code');
     Route::patch('/settings/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
     Route::delete('/settings', [ProfileController::class, 'destroy'])->name('profile.destroy');

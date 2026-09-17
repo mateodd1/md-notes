@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ApiToken;
 use App\Services\ApiTokens;
+use App\Services\AccountExports;
 use App\Services\NoteSpace;
 use App\Services\ProfileVerificationCodes;
 use App\Services\StorageQuota;
@@ -11,6 +12,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\AccountExportReadyMail;
 use Illuminate\View\View;
 use RuntimeException;
 use Throwable;
@@ -22,6 +25,7 @@ class ProfileController extends Controller
         private readonly ProfileVerificationCodes $verificationCodes,
         private readonly ApiTokens $apiTokens,
         private readonly StorageQuota $quota,
+        private readonly AccountExports $exports,
     )
     {
     }
@@ -92,7 +96,7 @@ class ProfileController extends Controller
 
         $data = $request->validate([
             'code' => ['required', 'digits:6'],
-            'new_password' => ['required', 'string', 'confirmed', 'min:12', 'max:128'],
+            'new_password' => ['required', 'string', 'confirmed', 'min:8', 'max:128'],
         ]);
 
         if (! $this->verificationCodes->verify($request->user(), ProfileVerificationCodes::PASSWORD, $data['code'])) {
@@ -143,6 +147,7 @@ class ProfileController extends Controller
         }
 
         try {
+            $this->exports->purgeForUser($user);
             $this->spaces->deleteSpace($user);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['delete_account' => $exception->getMessage()]);
@@ -154,6 +159,40 @@ class ProfileController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('login')->with('status', __('ui.account_deleted'));
+    }
+
+    public function requestAccountExport(Request $request): RedirectResponse
+    {
+        if ($response = $this->demoResponse($request)) {
+            return $response;
+        }
+
+        $result = $this->exports->create($request->user());
+        if ($result === null) {
+            return back()->with('status', __('ui.account_export_daily_limit'));
+        }
+
+        [$export, $token] = $result;
+
+        try {
+            Mail::to($request->user()->email)->send(new AccountExportReadyMail(
+                $request->user(),
+                route('account-exports.download', ['token' => $token]),
+                app()->getLocale(),
+            ));
+        } catch (Throwable $exception) {
+            $this->exports->delete($export);
+            report($exception);
+
+            return back()->withErrors(['account_export' => __('ui.account_export_delivery_failed')]);
+        }
+
+        return back()->with('status', __('ui.account_export_email_sent'));
+    }
+
+    public function downloadAccountExport(string $token)
+    {
+        return $this->exports->download($token);
     }
 
     private function demoResponse(Request $request): ?RedirectResponse

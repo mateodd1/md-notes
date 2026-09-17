@@ -168,7 +168,7 @@ class ShareController extends Controller
     private function withSharedMediaUrls(SharedNote $share, string $content): string
     {
         $baseUrl = preg_quote(rtrim(url('/'), '/'), '/');
-        $pattern = '/(!?\[[^\]]*\]\()\s*(?:'.$baseUrl.')?\/media\/([a-z0-9]{24}\.[a-z0-9]{1,10})(\))/i';
+        $pattern = '/(!?\[[^\]]*\]\()\s*(?:'.$baseUrl.')?\/(?:app\/)?media\/([a-z0-9]{24}\.[a-z0-9]{1,10})(\))/i';
 
         return preg_replace_callback($pattern, function (array $matches) use ($share): string {
             return $matches[1].route('shares.media', [
@@ -183,6 +183,6 @@ class ShareController extends Controller
         $baseUrl = preg_quote(rtrim(url('/'), '/'), '/');
         $filename = preg_quote($filename, '/');
 
-        return preg_match('/!?\[[^\]]*\]\(\s*(?:'.$baseUrl.')?\/media\/'.$filename.'\)/i', $content) === 1;
+        return preg_match('/!?\[[^\]]*\]\(\s*(?:'.$baseUrl.')?\/(?:app\/)?media\/'.$filename.'\)/i', $content) === 1;
     }
 }

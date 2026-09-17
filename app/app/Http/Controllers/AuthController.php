@@ -49,10 +49,15 @@ class AuthController extends Controller
 
     public function register(Request $request, NoteSpace $spaces, NoteVersionHistory $history): RedirectResponse
     {
+        $request->merge([
+            'name' => trim((string) $request->input('name')),
+            'email' => trim((string) $request->input('email')),
+        ]);
+
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:80'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'confirmed', 'min:12', 'max:128'],
+            'name' => ['required', 'string', 'min:3', 'max:80'],
+            'email' => ['required', 'string', 'email:rfc', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'confirmed', 'min:8', 'max:128'],
         ]);
 
         $firstAccount = User::query()->doesntExist();
@@ -134,7 +139,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', 'min:12', 'max:128'],
+            'password' => ['required', 'confirmed', 'min:8', 'max:128'],
         ]);
 
         $status = Password::reset(

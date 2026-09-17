@@ -9,14 +9,13 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class ProfileVerificationCodeMail extends Mailable
+class AccountExportReadyMail extends Mailable
 {
     use Queueable, SerializesModels;
 
     public function __construct(
         public readonly User $user,
-        public readonly string $purpose,
-        public readonly string $code,
+        public readonly string $downloadUrl,
         public readonly string $mailLocale,
     ) {
     }
@@ -24,12 +23,12 @@ class ProfileVerificationCodeMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(subject: $this->mailLocale === 'es'
-            ? 'Código de seguridad de md-notes'
-            : 'Your md-notes security code');
+            ? 'Tu descarga de datos de md-notes'
+            : 'Your md-notes data download');
     }
 
     public function content(): Content
     {
-        return new Content(view: 'mail.profile-code');
+        return new Content(view: 'mail.account-export');
     }
 }

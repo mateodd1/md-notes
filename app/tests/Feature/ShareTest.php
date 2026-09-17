@@ -65,8 +65,34 @@ class ShareTest extends TestCase
         $this->get(route('shares.show', ['token' => 'A2BCD']))
             ->assertOk()
             ->assertSee('Apuntes')
-            ->assertSee('Nota compartida')
-            ->assertSee('Apariencia');
+            ->assertSee(__('ui.shared_note'))
+            ->assertSee(__('ui.appearance'));
+    }
+
+    public function test_a_share_rewrites_media_urls_from_before_and_after_the_app_prefix(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+            'is_admin' => true,
+        ]);
+        $share = SharedNote::query()->create([
+            'user_id' => $user->id,
+            'path' => 'Clase/Apuntes.md',
+            'token' => 'A2BCD',
+        ]);
+        $oldFilename = 'abcdefghijklmnopqrstuvwx.png';
+        $currentFilename = 'zyxwvutsrqponmlkjihgfedc.jpg';
+        $spaces = Mockery::mock(NoteSpace::class);
+        $spaces->shouldReceive('read')->once()->andReturn("![](/media/{$oldFilename})\n![](/app/media/{$currentFilename})");
+        $this->app->instance(NoteSpace::class, $spaces);
+
+        $response = $this->get(route('shares.show', ['token' => $share->token]));
+
+        $response->assertOk()
+            ->assertSee(route('shares.media', ['token' => $share->token, 'filename' => $oldFilename]), false)
+            ->assertSee(route('shares.media', ['token' => $share->token, 'filename' => $currentFilename]), false);
     }
 
     public function test_an_owner_can_manage_their_share_without_accessing_another_users_share(): void

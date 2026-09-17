@@ -32,6 +32,11 @@ class NotesController extends Controller
         return $this->workspace($request);
     }
 
+    public function quota(Request $request): JsonResponse
+    {
+        return response()->json($this->quota->summary($request->user()));
+    }
+
     public function show(Request $request, string $path): View
     {
         $content = $this->spaces->read($request->user(), $path);

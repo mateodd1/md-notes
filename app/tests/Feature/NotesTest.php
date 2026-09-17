@@ -71,6 +71,20 @@ class NotesTest extends TestCase
             ->assertSee('<h1>Lectura</h1>', false);
     }
 
+    public function test_an_authenticated_user_can_refresh_their_storage_quota(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+            'is_admin' => true,
+        ]);
+
+        $this->actingAs($user)->get(route('quota.show'))
+            ->assertOk()
+            ->assertJsonStructure(['used', 'limit', 'available', 'percentage', 'used_human', 'limit_human']);
+    }
+
     public function test_a_user_can_open_the_history_of_their_own_note(): void
     {
         $user = User::query()->create([
@@ -141,5 +155,25 @@ class NotesTest extends TestCase
 
         $response->assertOk()->assertJsonPath('markdown', fn (string $markdown): bool => str_starts_with($markdown, '![](http'));
         $this->actingAs($user)->get($response->json('url'))->assertOk();
+    }
+
+    public function test_an_authenticated_user_can_open_an_attachment_using_the_legacy_media_url(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+            'is_admin' => true,
+        ]);
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+        $filename = 'abcdefghijklmnopqrstuvwx.png';
+        $directory = $this->mediaPath.'/'.$user->id.'/.md-notes-media';
+        File::ensureDirectoryExists($directory);
+        File::put($directory.'/'.$filename, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLJDQAAAABJRU5ErkJggg=='));
+
+        $this->actingAs($user)
+            ->get('/media/'.$filename)
+            ->assertOk()
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
     }
 }

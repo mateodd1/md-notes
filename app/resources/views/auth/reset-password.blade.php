@@ -11,8 +11,8 @@
             @csrf
             <input type="hidden" name="token" value="{{ $token }}">
             <label for="email">{{ __('ui.email') }}</label><input id="email" name="email" type="email" value="{{ old('email', $email) }}" autocomplete="off" autocapitalize="none" spellcheck="false" required autofocus>
-            <label for="password">{{ __('ui.new_password') }}</label><input id="password" name="password" type="password" autocomplete="new-password" required>
-            <label for="password_confirmation">{{ __('ui.repeat_new_password') }}</label><input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required>
+            <label for="password">{{ __('ui.new_password') }}</label><input id="password" name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required>
+            <label for="password_confirmation">{{ __('ui.repeat_new_password') }}</label><input id="password_confirmation" name="password_confirmation" type="password" minlength="8" maxlength="128" autocomplete="new-password" required>
             <button class="button" type="submit">{{ __('ui.save_password') }}</button>
         </form>
     </section>

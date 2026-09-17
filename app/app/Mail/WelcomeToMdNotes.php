@@ -13,13 +13,13 @@ class WelcomeToMdNotes extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public readonly User $user, public readonly string $locale = 'en')
+    public function __construct(public readonly User $user, public readonly string $mailLocale = 'en')
     {
     }
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: $this->locale === 'es' ? 'Bienvenido a md-notes' : 'Welcome to md-notes');
+        return new Envelope(subject: $this->mailLocale === 'es' ? 'Bienvenido a md-notes' : 'Welcome to md-notes');
     }
 
     public function content(): Content
