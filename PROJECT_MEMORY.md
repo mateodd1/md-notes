@@ -129,7 +129,7 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 - No guardar secretos en este documento, en el repositorio ni en salidas de terminal.
 - `note_versions` es la tabla de historial, creada por la migración `2026_09_16_000003_create_note_versions_table.php`.
 - El historial de versiones cuenta para la cuota de 100 MiB de cada usuario. Al guardar una instantánea se calcula el uso resultante considerando la retención (50 versiones por nota y 7 días); superar el límite responde con un error de validación, nunca con un 500.
-- Los enlaces compartidos nuevos usan siete caracteres de `0123456789ABCDEFGHJKLMNPQRSTUVWXYZ`; las rutas siguen aceptando los enlaces heredados de cinco caracteres.
+- Los enlaces compartidos nuevos usan cinco caracteres de `0123456789ABCDEFGHJKLMNPQRSTUVWXYZ`; las rutas también aceptan los enlaces heredados de siete caracteres.
 
 ## Puntos de extensión recomendados
 

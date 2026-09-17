@@ -17,7 +17,7 @@ class ShareController extends Controller
 {
     private const TOKEN_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
-    private const TOKEN_LENGTH = 7;
+    private const TOKEN_LENGTH = 5;
 
     public function __construct(
         private readonly NoteSpace $spaces,

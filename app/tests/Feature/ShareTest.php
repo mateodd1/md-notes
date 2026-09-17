@@ -41,7 +41,7 @@ class ShareTest extends TestCase
         $response->assertRedirect(route('notes.show', ['path' => 'Otra.md']));
         $share = SharedNote::query()->sole();
         $this->assertSame($user->id, $share->user_id);
-        $this->assertMatchesRegularExpression('/^[0123456789ABCDEFGHJKLMNPQRSTUVWXYZ]{7}$/', $share->token);
+        $this->assertMatchesRegularExpression('/^[0123456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/', $share->token);
         $this->assertTrue($share->expires_at->isFuture());
     }
 
