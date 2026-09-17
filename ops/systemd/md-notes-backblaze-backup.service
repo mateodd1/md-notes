@@ -1,0 +1,8 @@
+[Unit]
+Description=Hourly encrypted Backblaze B2 backup for md-notes
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/backup-md-notes-backblaze

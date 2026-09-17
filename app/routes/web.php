@@ -21,17 +21,17 @@ Route::get('/media/{filename}', [NoteMediaController::class, 'show'])
     ->name('media.legacy');
 
 Route::get('/share/{token}/media/{filename}', [ShareController::class, 'media'])
-    ->where('token', '[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}')
+    ->where('token', '(?:[0123456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}|[0123456789ABCDEFGHJKLMNPQRSTUVWXYZ]{7})')
     ->where('filename', '[a-z0-9]{24}\.[a-z0-9]{1,10}')
     ->middleware('throttle:60,1')
     ->name('shares.media');
-Route::get('/share/{token}', [ShareController::class, 'show'])->where('token', '[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}')->middleware('throttle:60,1')->name('shares.show');
+Route::get('/share/{token}', [ShareController::class, 'show'])->where('token', '(?:[0123456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}|[0123456789ABCDEFGHJKLMNPQRSTUVWXYZ]{7})')->middleware('throttle:60,1')->name('shares.show');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthController::class, 'create'])->name('login');
     Route::post('/login', [AuthController::class, 'store'])->middleware('throttle:6,1')->name('login.store');
-    Route::get('/singup', [AuthController::class, 'registerForm'])->name('register');
-    Route::post('/singup', [AuthController::class, 'register'])->middleware('throttle:3,1')->name('register.store');
+    Route::get('/signup', [AuthController::class, 'registerForm'])->name('register');
+    Route::post('/signup', [AuthController::class, 'register'])->middleware('throttle:3,1')->name('register.store');
     Route::get('/forgot-password', [AuthController::class, 'forgotPasswordForm'])->name('password.request');
     Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->middleware('throttle:3,1')->name('password.email');
     Route::get('/reset-password/{token}', [AuthController::class, 'resetPasswordForm'])->name('password.reset');
@@ -55,7 +55,7 @@ Route::middleware('auth')->prefix('app')->group(function (): void {
     Route::delete('/settings/api-tokens/{token}', [ProfileController::class, 'destroyApiToken'])->name('profile.api-tokens.destroy');
     Route::post('/settings/account-export', [ProfileController::class, 'requestAccountExport'])->middleware('throttle:3,1')->name('profile.account-exports.store');
     Route::post('/settings/password/code', [ProfileController::class, 'sendPasswordCode'])->middleware('throttle:3,15')->name('profile.password.code');
-    Route::patch('/settings/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
+    Route::patch('/settings/password', [ProfileController::class, 'updatePassword'])->middleware('throttle:10,15')->name('profile.password');
     Route::delete('/settings', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::get('/history/{path}', [NoteVersionController::class, 'index'])->where('path', '.*\.md')->name('versions.index');
     Route::get('/versions/{version}', [NoteVersionController::class, 'show'])->name('versions.show');
@@ -67,6 +67,7 @@ Route::middleware('auth')->prefix('app')->group(function (): void {
     Route::patch('/reorder', [NotesController::class, 'reorder'])->name('notes.reorder');
     Route::patch('/reorder-folders', [NotesController::class, 'reorderFolder'])->name('folders.reorder');
     Route::patch('/item/rename', [NotesController::class, 'rename'])->name('items.rename');
+    Route::patch('/item/pin', [NotesController::class, 'pin'])->name('items.pin');
     Route::delete('/item', [NotesController::class, 'destroyItem'])->name('items.destroy');
     Route::get('/trash', [NotesController::class, 'trashIndex'])->name('trash.index');
     Route::post('/trash/{id}/restore', [NotesController::class, 'restoreTrash'])->where('id', '\\d{14}-[a-f0-9]{16}')->name('trash.restore');

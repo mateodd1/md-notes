@@ -79,10 +79,26 @@ class NotesController extends Controller
 
     public function update(Request $request, string $path): RedirectResponse|JsonResponse
     {
-        $data = $request->validate(['content' => ['present', 'string', 'max:5242880']]);
-        $this->spaces->write($request->user(), $path, $data['content']);
-        $this->history->record($request->user(), $path, $data['content']);
-        $this->media->pruneUnreferenced($request->user());
+        $data = $request->validate([
+            'content' => ['present', 'string', 'max:5242880'],
+            'snapshot' => ['nullable', 'boolean'],
+        ]);
+        try {
+            $this->spaces->write($request->user(), $path, $data['content'], $request->boolean('snapshot'));
+            if ($request->boolean('snapshot')) {
+                $this->history->record($request->user(), $path, $data['content']);
+            }
+            $this->media->pruneUnreferenced($request->user());
+        } catch (RuntimeException $exception) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                    'errors' => ['content' => [$exception->getMessage()]],
+                ], 422);
+            }
+
+            return back()->withErrors(['content' => $exception->getMessage()])->withInput();
+        }
 
         if ($request->expectsJson()) {
             return response()->json(['savedAt' => now()->format('H:i')]);
@@ -218,10 +234,12 @@ class NotesController extends Controller
         $data = $request->validate([
             'path' => ['required', 'string', 'max:500'],
             'name' => ['required', 'string', 'max:80'],
+            'color' => ['nullable', 'string', 'max:20'],
+            'collapsed' => ['nullable', 'boolean'],
         ]);
 
         try {
-            $path = $this->spaces->rename($request->user(), $data['path'], $data['name']);
+            $path = $this->spaces->rename($request->user(), $data['path'], $data['name'], $request->has('color') ? ($data['color'] ?? '') : null, $request->has('collapsed') ? $request->boolean('collapsed') : null);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['rename' => $exception->getMessage()]);
         }
@@ -234,6 +252,29 @@ class NotesController extends Controller
         }
 
         return redirect()->route('notes.index')->with('status', __('ui.folder_renamed'));
+    }
+
+    public function pin(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'path' => ['required', 'string', 'max:500'],
+            'pinned' => ['required', 'boolean'],
+            'active_path' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $this->spaces->setPinned($request->user(), $data['path'], (bool) $data['pinned']);
+        } catch (RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json([
+            'tree' => view('notes._tree', [
+                'nodes' => $this->spaces->tree($request->user()),
+                'path' => $data['active_path'] ?? '',
+            ])->render(),
+            'message' => $data['pinned'] ? __('ui.item_pinned') : __('ui.item_unpinned'),
+        ]);
     }
 
     public function destroyItem(Request $request): RedirectResponse

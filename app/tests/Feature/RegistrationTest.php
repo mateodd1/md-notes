@@ -87,7 +87,8 @@ class RegistrationTest extends TestCase
     public function test_authentication_routes_use_the_new_english_paths(): void
     {
         $this->get('/login')->assertOk();
-        $this->get('/singup')->assertOk();
+        $this->get('/signup')->assertOk();
+        $this->get('/singup')->assertNotFound();
         $this->get('/acceder')->assertNotFound();
         $this->get('/registro')->assertNotFound();
     }

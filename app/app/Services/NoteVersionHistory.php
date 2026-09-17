@@ -9,11 +9,14 @@ use Illuminate\Support\Str;
 
 class NoteVersionHistory
 {
-    private const MAX_VERSIONS = 50;
+    public const MAX_VERSIONS = 50;
 
-    private const RETENTION_DAYS = 7;
+    public const RETENTION_DAYS = 7;
 
-    public function __construct(private readonly NoteMedia $media)
+    public function __construct(
+        private readonly NoteMedia $media,
+        private readonly StorageQuota $quota,
+    )
     {
     }
 
@@ -26,6 +29,7 @@ class NoteVersionHistory
             ->value('content');
 
         if ($latestContent !== $content) {
+            $this->quota->ensureCanRecordVersion($user, $this->spaceRoot($user), $path, $content);
             NoteVersion::query()->create([
                 'user_id' => $user->getKey(),
                 'path' => $path,
@@ -89,5 +93,10 @@ class NoteVersionHistory
         if ($staleIds->isNotEmpty()) {
             NoteVersion::query()->whereKey($staleIds)->delete();
         }
+    }
+
+    private function spaceRoot(User $user): string
+    {
+        return app(NoteSpace::class)->root($user);
     }
 }

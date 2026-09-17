@@ -82,4 +82,44 @@ class NoteSpaceIsolationTest extends TestCase
         $this->assertSame('# Contenido que debe seguir ocupando espacio', $spaces->read($user, $path));
         $this->assertSame([], $spaces->trashItems($user));
     }
+
+    public function test_a_folder_can_be_moved_inside_another_folder_while_keeping_its_icon_colour(): void
+    {
+        $user = new User(['name' => 'Propietario', 'email' => 'propietario@example.test']);
+        $user->setAttribute('id', 505);
+        $spaces = new NoteSpace($this->spacePath);
+
+        $spaces->createFolder($user, '', 'Destino');
+        $spaces->createFolder($user, '', 'Origen');
+        $spaces->rename($user, 'Origen', 'Origen', '#7c3aed', true);
+
+        $this->assertSame('Destino/Origen', $spaces->move($user, 'Origen', 'Destino'));
+        $tree = $spaces->tree($user);
+
+        $this->assertSame('#7c3aed', $tree[0]['children'][0]['color']);
+        $this->assertTrue($tree[0]['children'][0]['collapsed']);
+    }
+
+    public function test_notes_and_folders_can_be_pinned_and_keep_that_state_when_moved(): void
+    {
+        $user = new User(['name' => 'Propietario', 'email' => 'propietario@example.test']);
+        $user->setAttribute('id', 606);
+        $spaces = new NoteSpace($this->spacePath);
+
+        $spaces->createFolder($user, '', 'Archivo');
+        $note = $spaces->createNote($user, '', 'Importante');
+        $spaces->setPinned($user, 'Archivo', true);
+        $spaces->setPinned($user, $note, true);
+
+        $tree = $spaces->tree($user);
+        $this->assertTrue($tree[0]['pinned']);
+        $this->assertTrue($tree[1]['pinned']);
+
+        $spaces->createFolder($user, '', 'Destino');
+        $spaces->move($user, 'Archivo', 'Destino');
+        $moved = $spaces->tree($user);
+        $destination = collect($moved)->firstWhere('name', 'Destino');
+
+        $this->assertTrue($destination['children'][0]['pinned']);
+    }
 }

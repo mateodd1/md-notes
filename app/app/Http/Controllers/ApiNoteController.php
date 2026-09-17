@@ -38,13 +38,15 @@ class ApiNoteController extends Controller
         }
 
         try {
-            $created = $this->spaces->writeFromApi($request->user(), $path, $content);
+            $created = $this->spaces->writeFromApi($request->user(), $path, $content, snapshot: true);
+            $this->history->record($request->user(), $path, $content);
+            $this->media->pruneUnreferenced($request->user());
         } catch (RuntimeException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 422);
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => ['content' => [$exception->getMessage()]],
+            ], 422);
         }
-
-        $this->history->record($request->user(), $path, $content);
-        $this->media->pruneUnreferenced($request->user());
 
         return response()->json([
             'path' => $path,

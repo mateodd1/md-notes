@@ -15,7 +15,9 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ShareController extends Controller
 {
-    private const TOKEN_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    private const TOKEN_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+
+    private const TOKEN_LENGTH = 7;
 
     public function __construct(
         private readonly NoteSpace $spaces,
@@ -129,7 +131,7 @@ class ShareController extends Controller
         $token = '';
         $lastIndex = strlen(self::TOKEN_ALPHABET) - 1;
 
-        for ($index = 0; $index < 5; $index++) {
+        for ($index = 0; $index < self::TOKEN_LENGTH; $index++) {
             $token .= self::TOKEN_ALPHABET[random_int(0, $lastIndex)];
         }
 

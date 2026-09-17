@@ -1,0 +1,9 @@
+[Unit]
+Description=Upload the current local md-notes backup to Backblaze every hour
+
+[Timer]
+OnCalendar=*-*-* *:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

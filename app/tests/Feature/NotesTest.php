@@ -41,14 +41,38 @@ class NotesTest extends TestCase
         $content = str_repeat('a', 4096);
         $spaces = Mockery::mock(NoteSpace::class);
         $spaces->shouldReceive('write')->once()->withArgs(fn (User $owner, string $path, string $value): bool => $owner->is($user) && $path === 'Clase/Larga.md' && $value === $content);
+        $spaces->allows('root')->andReturn($this->mediaPath.'/'.$user->id);
         $this->app->instance(NoteSpace::class, $spaces);
 
         $this->withSession(['_token' => 'test-token'])
             ->withHeader('referer', route('notes.show', ['path' => 'Clase/Larga.md']))
             ->actingAs($user)
-            ->put(route('notes.update', ['path' => 'Clase/Larga.md']), ['_token' => 'test-token', 'content' => $content])
+            ->put(route('notes.update', ['path' => 'Clase/Larga.md']), ['_token' => 'test-token', 'content' => $content, 'snapshot' => '1'])
             ->assertRedirect(route('notes.show', ['path' => 'Clase/Larga.md']));
         $this->assertDatabaseHas('note_versions', ['user_id' => $user->id, 'path' => 'Clase/Larga.md', 'content' => $content]);
+    }
+
+    public function test_an_automatic_save_does_not_create_a_version_snapshot(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+            'is_admin' => true,
+        ]);
+        $content = '# Guardado automático';
+        $spaces = Mockery::mock(NoteSpace::class);
+        $spaces->shouldReceive('write')->once()->withArgs(fn (User $owner, string $path, string $value): bool => $owner->is($user) && $path === 'Clase/Auto.md' && $value === $content);
+        $spaces->allows('root')->andReturn($this->mediaPath.'/'.$user->id);
+        $this->app->instance(NoteSpace::class, $spaces);
+
+        $this->withSession(['_token' => 'test-token'])
+            ->withHeader('referer', route('notes.show', ['path' => 'Clase/Auto.md']))
+            ->actingAs($user)
+            ->put(route('notes.update', ['path' => 'Clase/Auto.md']), ['_token' => 'test-token', 'content' => $content, 'snapshot' => '0'])
+            ->assertRedirect(route('notes.show', ['path' => 'Clase/Auto.md']));
+
+        $this->assertDatabaseMissing('note_versions', ['user_id' => $user->id, 'path' => 'Clase/Auto.md']);
     }
 
     public function test_a_note_opens_in_reading_mode_with_an_edit_control(): void
@@ -60,15 +84,21 @@ class NotesTest extends TestCase
             'is_admin' => true,
         ]);
         $spaces = Mockery::mock(NoteSpace::class);
-        $spaces->shouldReceive('read')->once()->withArgs(fn (User $owner, string $path): bool => $owner->is($user) && $path === 'Clase/Lectura.md')->andReturn('# Lectura');
-        $spaces->shouldReceive('tree')->once()->withArgs(fn (User $owner): bool => $owner->is($user))->andReturn([]);
+        $spaces->shouldReceive('read')->once()->withArgs(fn (User $owner, string $path): bool => $owner->is($user) && $path === 'Clase/Lectura.md')->andReturn("# Lectura\n\nTexto con `código`.");
+        $spaces->shouldReceive('tree')->once()->withArgs(fn (User $owner): bool => $owner->is($user))->andReturn([[
+            'type' => 'folder', 'name' => 'Clase', 'path' => 'Clase', 'collapsed' => true, 'pinned' => false,
+            'children' => [['type' => 'note', 'name' => 'Lectura', 'path' => 'Clase/Lectura.md', 'pinned' => false]],
+        ]]);
         $this->app->instance(NoteSpace::class, $spaces);
 
         $this->actingAs($user)->get(route('notes.show', ['path' => 'Clase/Lectura.md']))
             ->assertOk()
             ->assertSee('id="editor-layout" class="editor-layout is-reading"', false)
-            ->assertSee('Editar')
-            ->assertSee('<h1>Lectura</h1>', false);
+            ->assertSee(__('ui.edit'))
+            ->assertSee('<h1>Lectura</h1>', false)
+            ->assertSee('<code>código</code>', false)
+            ->assertSee('<details class="tree-folder"  open', false)
+            ->assertSee('assets/md-notes-workspace.css', false);
     }
 
     public function test_an_authenticated_user_can_refresh_their_storage_quota(): void
@@ -104,10 +134,56 @@ class NotesTest extends TestCase
 
         $this->actingAs($user)->get(route('versions.index', ['path' => 'Clase/Historia.md']))
             ->assertOk()
-            ->assertSee('Historial de versiones')
-            ->assertSee('Ver')
-            ->assertSee('Restaurar')
-            ->assertSee('Descargar');
+            ->assertSee(__('ui.version_history'))
+            ->assertSee(__('ui.view'))
+            ->assertSee(__('ui.restore'))
+            ->assertSee(__('ui.download'));
+    }
+
+    public function test_version_history_is_counted_against_the_storage_quota(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+        ]);
+        $user->forceFill(['storage_quota_bytes' => 10])->save();
+        NoteVersion::query()->create([
+            'user_id' => $user->id,
+            'path' => 'Historia.md',
+            'content' => str_repeat('a', 10),
+        ]);
+
+        $quota = $this->app->make(\App\Services\StorageQuota::class)->summary($user, $this->mediaPath.'/'.$user->id);
+
+        $this->assertSame(10, $quota['used']);
+        $this->assertSame(0, $quota['available']);
+    }
+
+    public function test_an_edit_that_would_exceed_the_quota_returns_a_validation_error(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+        ]);
+        $user->forceFill(['storage_quota_bytes' => 30])->save();
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+        $spaces = $this->app->make(NoteSpace::class);
+        $path = $spaces->createNote($user, '', 'Cuota');
+        $spaces->write($user, $path, str_repeat('a', 15));
+        $this->app->make(NoteVersionHistory::class)->record($user, $path, str_repeat('a', 15));
+
+        $this->withSession(['_token' => 'test-token'])
+            ->withHeader('Accept', 'application/json')
+            ->actingAs($user)
+            ->put(route('notes.update', ['path' => $path]), [
+                '_token' => 'test-token',
+                'content' => str_repeat('b', 16),
+                'snapshot' => '1',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('content');
     }
 
     public function test_history_keeps_at_most_fifty_versions_and_removes_expired_ones(): void

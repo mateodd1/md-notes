@@ -13,6 +13,14 @@ class NoteSpace
 
     private const FOLDER_ORDER_FILE = '.md-notes-folder-order.json';
 
+    private const FOLDER_COLORS_FILE = '.md-notes-folder-colors.json';
+
+    private const FOLDER_COLLAPSED_FILE = '.md-notes-folder-collapsed.json';
+
+    private const PINNED_FILE = '.md-notes-pinned.json';
+
+    private const FOLDER_COLORS = ['#0284c7', '#7c3aed', '#db2777', '#ea580c', '#16a34a', '#64748b'];
+
     private const TRASH_DIRECTORY = '.md-notes-trash';
 
     private const TRASH_METADATA_FILE = 'metadata.json';
@@ -37,7 +45,7 @@ class NoteSpace
     {
         $root = $this->root($user);
 
-        return $this->scan($root, '', $this->readNoteOrder($root), $this->readFolderOrder($root));
+        return $this->scan($root, '', $this->readNoteOrder($root), $this->readFolderOrder($root), $this->readFolderColors($root), $this->readFolderCollapsed($root), $this->readPinned($root));
     }
 
     public function read(User $user, string $path): string
@@ -51,7 +59,7 @@ class NoteSpace
         return (string) file_get_contents($file);
     }
 
-    public function write(User $user, string $path, string $content): void
+    public function write(User $user, string $path, string $content, bool $snapshot = false): void
     {
         $file = $this->filePath($user, $path, mustExist: false);
         $directory = dirname($file);
@@ -60,12 +68,12 @@ class NoteSpace
             throw new RuntimeException(__('ui.destination_folder_unavailable'));
         }
 
-        $this->quota()->ensureCanReplace($user, $this->root($user), $file, strlen($content));
+        $this->quota()->ensureCanSaveNote($user, $this->root($user), $file, $path, $content, $snapshot);
 
         file_put_contents($file, $content, LOCK_EX);
     }
 
-    public function writeFromApi(User $user, string $path, string $content): bool
+    public function writeFromApi(User $user, string $path, string $content, bool $snapshot = true): bool
     {
         $file = $this->filePath($user, $path, mustExist: false);
         $directory = dirname($file);
@@ -79,7 +87,7 @@ class NoteSpace
         }
 
         $created = ! is_file($file);
-        $this->quota()->ensureCanReplace($user, $this->root($user), $file, strlen($content));
+        $this->quota()->ensureCanSaveNote($user, $this->root($user), $file, $path, $content, $snapshot);
         if (file_put_contents($file, $content, LOCK_EX) === false) {
             throw new RuntimeException(__('ui.could_not_save'));
         }
@@ -131,7 +139,7 @@ class NoteSpace
         return $this->trash($user, $path);
     }
 
-    public function rename(User $user, string $path, string $name): string
+    public function rename(User $user, string $path, string $name, ?string $folderColor = null, ?bool $folderCollapsed = null): string
     {
         $root = $this->root($user);
         $sourceRelative = $this->normalize($path);
@@ -152,6 +160,13 @@ class NoteSpace
         $this->assertContained($root, $target, false);
 
         if ($target === $source) {
+            if (! $isNote && $folderColor !== null) {
+                $this->setFolderColor($user, $sourceRelative, $folderColor);
+            }
+            if (! $isNote && $folderCollapsed !== null) {
+                $this->setFolderCollapsed($user, $sourceRelative, $folderCollapsed);
+            }
+
             return $sourceRelative;
         }
 
@@ -166,6 +181,15 @@ class NoteSpace
         $targetRelative = ltrim(substr($target, strlen($root)), '/');
         $this->relocateNoteOrder($user, $sourceRelative, $targetRelative);
         $this->relocateFolderOrder($user, $sourceRelative, $targetRelative);
+        $this->relocateFolderColors($user, $sourceRelative, $targetRelative);
+        $this->relocateFolderCollapsed($user, $sourceRelative, $targetRelative);
+        $this->relocatePinned($user, $sourceRelative, $targetRelative);
+        if (! $isNote && $folderColor !== null) {
+            $this->setFolderColor($user, $targetRelative, $folderColor);
+        }
+        if (! $isNote && $folderCollapsed !== null) {
+            $this->setFolderCollapsed($user, $targetRelative, $folderCollapsed);
+        }
 
         return $targetRelative;
     }
@@ -174,6 +198,27 @@ class NoteSpace
     public function deleteItem(User $user, string $path): array
     {
         return $this->trash($user, $path);
+    }
+
+    public function setPinned(User $user, string $path, bool $pinned): void
+    {
+        $root = $this->root($user);
+        $relativePath = $this->normalize($path);
+        $target = $root.'/'.$relativePath;
+        $this->assertContained($root, $target, true);
+
+        if (! is_dir($target) && (! is_file($target) || ! Str::endsWith(Str::lower($target), '.md'))) {
+            abort(404);
+        }
+
+        $items = $this->readPinned($root);
+        if ($pinned) {
+            $items[$relativePath] = true;
+        } else {
+            unset($items[$relativePath]);
+        }
+
+        $this->writePinned($root, $items);
     }
 
     /** @return array{id: string, original_path: string, history_path: string, type: string, deleted_at: string} */
@@ -199,6 +244,15 @@ class NoteSpace
             'type' => $type,
             'deleted_at' => now()->toIso8601String(),
         ];
+        if ($type === 'folder' && ($folderColor = $this->folderColor($user, $relativePath)) !== null) {
+            $entry['folder_color'] = $folderColor;
+        }
+        if ($type === 'folder' && $this->folderCollapsed($user, $relativePath)) {
+            $entry['folder_collapsed'] = true;
+        }
+        if ($this->isPinned($user, $relativePath)) {
+            $entry['pinned'] = true;
+        }
 
         if (! mkdir(dirname($destination), 0770, true) && ! is_dir(dirname($destination))) {
             throw new RuntimeException(__('ui.cannot_move_to_trash'));
@@ -215,6 +269,9 @@ class NoteSpace
 
         $this->removeFromNoteOrder($user, $relativePath);
         $this->removeFromFolderOrder($user, $relativePath);
+        $this->removeFromFolderColors($user, $relativePath);
+        $this->removeFromFolderCollapsed($user, $relativePath);
+        $this->removePinned($user, $relativePath);
 
         return $entry;
     }
@@ -267,6 +324,15 @@ class NoteSpace
         }
 
         File::deleteDirectory($this->trashDirectory($user).'/'.$entry['id']);
+        if ($entry['type'] === 'folder' && is_string($entry['folder_color'] ?? null)) {
+            $this->setFolderColor($user, $entry['original_path'], $entry['folder_color']);
+        }
+        if ($entry['type'] === 'folder' && ($entry['folder_collapsed'] ?? false) === true) {
+            $this->setFolderCollapsed($user, $entry['original_path'], true);
+        }
+        if (($entry['pinned'] ?? false) === true) {
+            $this->setPinned($user, $entry['original_path'], true);
+        }
 
         return $entry;
     }
@@ -317,6 +383,9 @@ class NoteSpace
         $targetRelative = ltrim(substr($target, strlen($root)), '/');
         $this->relocateNoteOrder($user, $sourceRelative, $targetRelative);
         $this->relocateFolderOrder($user, $sourceRelative, $targetRelative);
+        $this->relocateFolderColors($user, $sourceRelative, $targetRelative);
+        $this->relocateFolderCollapsed($user, $sourceRelative, $targetRelative);
+        $this->relocatePinned($user, $sourceRelative, $targetRelative);
 
         return $targetRelative;
     }
@@ -430,7 +499,7 @@ class NoteSpace
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function scan(string $directory, string $prefix = '', array $noteOrder = [], array $folderOrder = []): array
+    private function scan(string $directory, string $prefix = '', array $noteOrder = [], array $folderOrder = [], array $folderColors = [], array $folderCollapsed = [], array $pinned = []): array
     {
         $folders = [];
         $files = [];
@@ -442,9 +511,9 @@ class NoteSpace
 
             $relative = $prefix === '' ? $entry : $prefix.'/'.$entry;
             if (is_dir($directory.'/'.$entry)) {
-                $folders[] = ['type' => 'folder', 'name' => $entry, 'path' => $relative, 'children' => $this->scan($directory.'/'.$entry, $relative, $noteOrder, $folderOrder)];
+                $folders[] = ['type' => 'folder', 'name' => $entry, 'path' => $relative, 'color' => $folderColors[$relative] ?? null, 'collapsed' => isset($folderCollapsed[$relative]), 'pinned' => isset($pinned[$relative]), 'children' => $this->scan($directory.'/'.$entry, $relative, $noteOrder, $folderOrder, $folderColors, $folderCollapsed, $pinned)];
             } elseif (Str::endsWith(Str::lower($entry), '.md')) {
-                $files[] = ['type' => 'note', 'name' => Str::beforeLast($entry, '.'), 'path' => $relative];
+                $files[] = ['type' => 'note', 'name' => Str::beforeLast($entry, '.'), 'path' => $relative, 'pinned' => isset($pinned[$relative])];
             }
         }
 
@@ -460,6 +529,10 @@ class NoteSpace
         $positions = array_flip($order);
 
         usort($nodes, function (array $a, array $b) use ($positions): int {
+            if (($a['pinned'] ?? false) !== ($b['pinned'] ?? false)) {
+                return ($a['pinned'] ?? false) ? -1 : 1;
+            }
+
             $aPosition = $positions[$a['path']] ?? PHP_INT_MAX;
             $bPosition = $positions[$b['path']] ?? PHP_INT_MAX;
 
@@ -696,6 +769,233 @@ class NoteSpace
     {
         $root = $this->root($user);
         $this->writeFolderOrder($root, $this->orderWithoutPath($this->readFolderOrder($root), $path));
+    }
+
+    /** @return array<string, string> */
+    private function readFolderColors(string $root): array
+    {
+        $content = @file_get_contents($root.'/'.self::FOLDER_COLORS_FILE);
+        $decoded = is_string($content) ? json_decode($content, true) : null;
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $colors = [];
+        foreach ($decoded as $path => $color) {
+            if (is_string($path) && is_string($color) && in_array($color, self::FOLDER_COLORS, true)) {
+                $colors[$path] = $color;
+            }
+        }
+
+        return $colors;
+    }
+
+    /** @param array<string, string> $colors */
+    private function writeFolderColors(string $root, array $colors): void
+    {
+        $file = $root.'/'.self::FOLDER_COLORS_FILE;
+        if ($colors === []) {
+            if (is_file($file) && ! unlink($file)) {
+                throw new RuntimeException(__('ui.cannot_save_folder_color'));
+            }
+
+            return;
+        }
+
+        if (file_put_contents($file, json_encode($colors, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), LOCK_EX) === false) {
+            throw new RuntimeException(__('ui.cannot_save_folder_color'));
+        }
+    }
+
+    private function folderColor(User $user, string $path): ?string
+    {
+        return $this->readFolderColors($this->root($user))[$path] ?? null;
+    }
+
+    private function setFolderColor(User $user, string $path, string $color): void
+    {
+        $root = $this->root($user);
+        $colors = $this->readFolderColors($root);
+        $path = $this->normalize($path);
+
+        if ($color === '') {
+            unset($colors[$path]);
+        } elseif (in_array($color, self::FOLDER_COLORS, true)) {
+            $colors[$path] = $color;
+        } else {
+            throw new RuntimeException(__('ui.invalid_folder_color'));
+        }
+
+        $this->writeFolderColors($root, $colors);
+    }
+
+    private function relocateFolderColors(User $user, string $sourcePath, string $destinationPath): void
+    {
+        $root = $this->root($user);
+        $colors = [];
+        foreach ($this->readFolderColors($root) as $path => $color) {
+            $colors[$this->relocateOrderPath($path, $sourcePath, $destinationPath)] = $color;
+        }
+
+        $this->writeFolderColors($root, $colors);
+    }
+
+    private function removeFromFolderColors(User $user, string $path): void
+    {
+        $root = $this->root($user);
+        $colors = array_filter(
+            $this->readFolderColors($root),
+            fn (string $color, string $folderPath): bool => $folderPath !== $path && ! Str::startsWith($folderPath, $path.'/'),
+            ARRAY_FILTER_USE_BOTH,
+        );
+
+        $this->writeFolderColors($root, $colors);
+    }
+
+    /** @return array<string, true> */
+    private function readFolderCollapsed(string $root): array
+    {
+        $content = @file_get_contents($root.'/'.self::FOLDER_COLLAPSED_FILE);
+        $decoded = is_string($content) ? json_decode($content, true) : null;
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $collapsed = [];
+        foreach ($decoded as $path => $value) {
+            if (is_string($path) && $value === true) {
+                $collapsed[$path] = true;
+            }
+        }
+
+        return $collapsed;
+    }
+
+    /** @param array<string, true> $collapsed */
+    private function writeFolderCollapsed(string $root, array $collapsed): void
+    {
+        $file = $root.'/'.self::FOLDER_COLLAPSED_FILE;
+        if ($collapsed === []) {
+            if (is_file($file) && ! unlink($file)) {
+                throw new RuntimeException(__('ui.cannot_save_folder_collapsed'));
+            }
+
+            return;
+        }
+
+        if (file_put_contents($file, json_encode($collapsed, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), LOCK_EX) === false) {
+            throw new RuntimeException(__('ui.cannot_save_folder_collapsed'));
+        }
+    }
+
+    private function folderCollapsed(User $user, string $path): bool
+    {
+        return isset($this->readFolderCollapsed($this->root($user))[$path]);
+    }
+
+    private function setFolderCollapsed(User $user, string $path, bool $collapsed): void
+    {
+        $root = $this->root($user);
+        $folders = $this->readFolderCollapsed($root);
+        $path = $this->normalize($path);
+
+        if ($collapsed) {
+            $folders[$path] = true;
+        } else {
+            unset($folders[$path]);
+        }
+
+        $this->writeFolderCollapsed($root, $folders);
+    }
+
+    private function relocateFolderCollapsed(User $user, string $sourcePath, string $destinationPath): void
+    {
+        $root = $this->root($user);
+        $collapsed = [];
+        foreach ($this->readFolderCollapsed($root) as $path => $value) {
+            $collapsed[$this->relocateOrderPath($path, $sourcePath, $destinationPath)] = $value;
+        }
+
+        $this->writeFolderCollapsed($root, $collapsed);
+    }
+
+    private function removeFromFolderCollapsed(User $user, string $path): void
+    {
+        $root = $this->root($user);
+        $collapsed = array_filter(
+            $this->readFolderCollapsed($root),
+            fn (bool $value, string $folderPath): bool => $folderPath !== $path && ! Str::startsWith($folderPath, $path.'/'),
+            ARRAY_FILTER_USE_BOTH,
+        );
+
+        $this->writeFolderCollapsed($root, $collapsed);
+    }
+
+    /** @return array<string, true> */
+    private function readPinned(string $root): array
+    {
+        $content = @file_get_contents($root.'/'.self::PINNED_FILE);
+        $decoded = is_string($content) ? json_decode($content, true) : null;
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $pinned = [];
+        foreach ($decoded as $path => $value) {
+            if (is_string($path) && $value === true) {
+                $pinned[$path] = true;
+            }
+        }
+
+        return $pinned;
+    }
+
+    /** @param array<string, true> $pinned */
+    private function writePinned(string $root, array $pinned): void
+    {
+        $file = $root.'/'.self::PINNED_FILE;
+        if ($pinned === []) {
+            if (is_file($file) && ! unlink($file)) {
+                throw new RuntimeException(__('ui.cannot_save_pinned_items'));
+            }
+
+            return;
+        }
+
+        if (file_put_contents($file, json_encode($pinned, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), LOCK_EX) === false) {
+            throw new RuntimeException(__('ui.cannot_save_pinned_items'));
+        }
+    }
+
+    private function isPinned(User $user, string $path): bool
+    {
+        return isset($this->readPinned($this->root($user))[$path]);
+    }
+
+    private function relocatePinned(User $user, string $sourcePath, string $destinationPath): void
+    {
+        $root = $this->root($user);
+        $pinned = [];
+        foreach ($this->readPinned($root) as $path => $value) {
+            $pinned[$this->relocateOrderPath($path, $sourcePath, $destinationPath)] = $value;
+        }
+
+        $this->writePinned($root, $pinned);
+    }
+
+    private function removePinned(User $user, string $path): void
+    {
+        $root = $this->root($user);
+        $pinned = array_filter(
+            $this->readPinned($root),
+            fn (bool $value, string $itemPath): bool => $itemPath !== $path && ! Str::startsWith($itemPath, $path.'/'),
+            ARRAY_FILTER_USE_BOTH,
+        );
+
+        $this->writePinned($root, $pinned);
     }
 
     /** @return array<string, array<int, string>> */

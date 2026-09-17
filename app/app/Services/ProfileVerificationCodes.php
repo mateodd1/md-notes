@@ -7,6 +7,7 @@ use App\Models\ProfileVerificationCode;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Throwable;
 
 class ProfileVerificationCodes
@@ -14,6 +15,10 @@ class ProfileVerificationCodes
     public const PASSWORD = 'password';
 
     public const EMAIL = 'email';
+
+    private const MAX_ATTEMPTS = 5;
+
+    private const ATTEMPT_DECAY_SECONDS = 900;
 
     public function send(User $user, string $purpose, ?string $target = null): void
     {
@@ -40,10 +45,17 @@ class ProfileVerificationCodes
 
             throw $exception;
         }
+
+        RateLimiter::clear($this->attemptKey($user, $purpose));
     }
 
     public function verify(User $user, string $purpose, string $code, ?string $target = null): bool
     {
+        $attemptKey = $this->attemptKey($user, $purpose);
+        if (RateLimiter::tooManyAttempts($attemptKey, self::MAX_ATTEMPTS)) {
+            return false;
+        }
+
         $query = ProfileVerificationCode::query()
             ->where('user_id', $user->getKey())
             ->where('purpose', $purpose);
@@ -52,6 +64,7 @@ class ProfileVerificationCodes
         $record = $query->first();
 
         if (! $record || $record->expires_at->isPast() || ! Hash::check($code, $record->code_hash)) {
+            RateLimiter::hit($attemptKey, self::ATTEMPT_DECAY_SECONDS);
             if ($record?->expires_at->isPast()) {
                 $record->delete();
             }
@@ -60,7 +73,13 @@ class ProfileVerificationCodes
         }
 
         $record->delete();
+        RateLimiter::clear($attemptKey);
 
         return true;
+    }
+
+    private function attemptKey(User $user, string $purpose): string
+    {
+        return 'profile-verification-code:'.$user->getKey().':'.$purpose;
     }
 }

@@ -114,8 +114,8 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 ## Copias de seguridad
 
 - `md-notes-local-backup.timer` está habilitado y ejecuta `/usr/local/sbin/backup-md-notes-local` cada cinco minutos. Genera un estado local actual en `/var/backups/md-notes/current` y una instantánea solo cuando cambian contenido, permisos, altas o bajas; las marcas de tiempo efímeras del volcado no crean instantáneas en `/var/backups/md-notes/snapshots`.
-- Las instantáneas locales usan enlaces físicos para reutilizar archivos sin cambios, incluyen el espacio de notas, adjuntos, SilverBullet heredado, `db.env`, `app/.env`, `compose.yml` y un volcado lógico consistente de MySQL (`md-notes/database.sql`). Se conservan 30 días y todo el árbol está restringido a `root` (directorios 700, ficheros 600). El script aborta sin modificar la copia si quedan menos de 5 GiB libres.
-- El temporizador `silverbullet-backup.timer` conserva su nombre heredado, pero ahora se ejecuta solo a `:30` de cada hora. Su servicio invoca `/usr/local/sbin/backup-silverbullet`, actualiza primero la copia local y sincroniza ese único estado hacia el remoto cifrado `crypt-silverbullet`, dejando las sustituciones en `crypt-silverbullet:history`.
+- Las instantáneas locales usan enlaces físicos para reutilizar archivos sin cambios e incluyen el espacio de notas y adjuntos, el código de Laravel (sin dependencias ni datos de ejecución), `db.env`, `app/.env`, `compose.yml`, `Dockerfile`, la configuración Docker y un volcado lógico consistente de MySQL (`md-notes/database.sql`). No incluyen SilverBullet. Se conservan 30 días y todo el árbol está restringido a `root` (directorios 700, ficheros 600). El script aborta sin modificar la copia si quedan menos de 5 GiB libres.
+- El temporizador `md-notes-backblaze-backup.timer` se ejecuta a `:30` de cada hora. Su servicio invoca `/usr/local/sbin/backup-md-notes-backblaze`, actualiza primero la copia local y sincroniza ese único estado hacia el remoto cifrado `crypt-md-notes`, dejando las sustituciones en `crypt-md-notes:history`.
 - El volcado MySQL usa `--single-transaction`, `--routines`, `--events`, `--no-tablespaces`, `--skip-dump-date` y `--set-gtid-purged=OFF`. La subida remota comprueba después el estado con `rclone check`.
 - Si Backblaze devuelve un límite de transacciones o una cuota agotada, las copias remotas no podrán completar hasta resolverlo en Backblaze. La aplicación y sus datos locales siguen operativos.
 - Antes de tocar datos productivos, hacer una copia recuperable de MySQL (volcado lógico) y de `data/`. Mantener también la SQLite heredada mientras sea útil para recuperación.
@@ -128,6 +128,8 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 - Tras editar rutas, vistas o configuración, reconstruir las cachés de Laravel con los comandos indicados arriba.
 - No guardar secretos en este documento, en el repositorio ni en salidas de terminal.
 - `note_versions` es la tabla de historial, creada por la migración `2026_09_16_000003_create_note_versions_table.php`.
+- El historial de versiones cuenta para la cuota de 100 MiB de cada usuario. Al guardar una instantánea se calcula el uso resultante considerando la retención (50 versiones por nota y 7 días); superar el límite responde con un error de validación, nunca con un 500.
+- Los enlaces compartidos nuevos usan siete caracteres de `0123456789ABCDEFGHJKLMNPQRSTUVWXYZ`; las rutas siguen aceptando los enlaces heredados de cinco caracteres.
 
 ## Puntos de extensión recomendados
 

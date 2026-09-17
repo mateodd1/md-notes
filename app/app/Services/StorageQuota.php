@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\NoteVersion;
 use App\Models\User;
 use RuntimeException;
 
@@ -12,6 +13,9 @@ class StorageQuota
     private const METADATA_FILES = [
         '.md-notes-order.json',
         '.md-notes-folder-order.json',
+        '.md-notes-folder-colors.json',
+        '.md-notes-folder-collapsed.json',
+        '.md-notes-pinned.json',
         'metadata.json',
     ];
 
@@ -51,6 +55,25 @@ class StorageQuota
         $this->ensureCanAdd($user, $root, max(0, $replacementBytes - $currentBytes));
     }
 
+    public function ensureCanSaveNote(User $user, string $root, string $file, string $path, string $content, bool $snapshot): void
+    {
+        $currentBytes = is_file($file) ? (int) filesize($file) : 0;
+        $projected = $this->used($user, $root) + strlen($content) - $currentBytes;
+
+        if ($snapshot) {
+            $projected += $this->projectedVersionDelta($user, $path, $content);
+        }
+
+        $this->ensureProjectedUsage($user, $root, $projected);
+    }
+
+    public function ensureCanRecordVersion(User $user, string $root, string $path, string $content): void
+    {
+        $projected = $this->used($user, $root) + $this->projectedVersionDelta($user, $path, $content);
+
+        $this->ensureProjectedUsage($user, $root, $projected);
+    }
+
     public function limit(User $user): int
     {
         $configured = (int) ($user->storage_quota_bytes ?? 0);
@@ -61,24 +84,72 @@ class StorageQuota
     public function used(User $user, ?string $root = null): int
     {
         $root ??= storage_path('app/private/spaces').'/'.$user->getKey();
-        if (! is_dir($root)) {
+        $bytes = 0;
+        if (is_dir($root)) {
+            $files = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+            );
+
+            foreach ($files as $file) {
+                if (! $file->isFile() || $file->isLink() || in_array($file->getFilename(), self::METADATA_FILES, true)) {
+                    continue;
+                }
+
+                $bytes += $file->getSize();
+            }
+        }
+
+        return $bytes + $this->historyBytes($user);
+    }
+
+    private function ensureProjectedUsage(User $user, string $root, int $projected): void
+    {
+        $current = $this->used($user, $root);
+        $limit = $this->limit($user);
+
+        if ($projected > $limit && $projected > $current) {
+            throw new RuntimeException(__('ui.storage_quota_exceeded', [
+                'used' => $this->format($current),
+                'limit' => $this->format($limit),
+            ]));
+        }
+    }
+
+    private function historyBytes(User $user): int
+    {
+        if (! $user->exists) {
             return 0;
         }
 
-        $bytes = 0;
-        $files = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
-        );
+        return (int) NoteVersion::query()
+            ->where('user_id', $user->getKey())
+            ->selectRaw('COALESCE(SUM(OCTET_LENGTH(content)), 0) AS bytes')
+            ->value('bytes');
+    }
 
-        foreach ($files as $file) {
-            if (! $file->isFile() || $file->isLink() || in_array($file->getFilename(), self::METADATA_FILES, true)) {
-                continue;
-            }
+    private function projectedVersionDelta(User $user, string $path, string $content): int
+    {
+        $versions = NoteVersion::query()
+            ->where('user_id', $user->getKey())
+            ->where('path', $path)
+            ->orderByDesc('id')
+            ->get(['content', 'created_at']);
 
-            $bytes += $file->getSize();
+        $currentBytes = $versions->sum(fn (NoteVersion $version): int => strlen($version->content));
+        $latestContent = $versions->first()?->content;
+        $remaining = $versions
+            ->filter(fn (NoteVersion $version): bool => $version->created_at->gte(now()->subDays(NoteVersionHistory::RETENTION_DAYS)))
+            ->pluck('content')
+            ->all();
+
+        if ($latestContent !== $content) {
+            array_unshift($remaining, $content);
         }
 
-        return $bytes;
+        $remaining = array_slice($remaining, 0, NoteVersionHistory::MAX_VERSIONS);
+        $projectedBytes = array_sum(array_map('strlen', $remaining));
+
+        return $projectedBytes - $currentBytes;
     }
 
     private function format(int $bytes): string

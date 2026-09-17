@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+# Creates recoverable local snapshots without contacting an external provider.
+readonly BACKUP_ROOT=/var/backups/md-notes
+readonly CURRENT_DIR="${BACKUP_ROOT}/current"
+readonly SNAPSHOTS_DIR="${BACKUP_ROOT}/snapshots"
+readonly NOTE_SPACES_DIR=/root/docker/md-notes/data
+readonly MD_NOTES_DIR=/root/docker/md-notes
+readonly LOCK_FILE=/run/lock/md-notes-local-backup.lock
+readonly RETENTION_DAYS=30
+readonly MIN_FREE_KIB=$((5 * 1024 * 1024))
+
+mkdir -p "${BACKUP_ROOT}" "${CURRENT_DIR}" "${SNAPSHOTS_DIR}"
+chmod 700 "${BACKUP_ROOT}" "${CURRENT_DIR}" "${SNAPSHOTS_DIR}"
+available_kib="$(df -Pk "${BACKUP_ROOT}" | awk 'NR == 2 { print $4 }')"
+if (( available_kib < MIN_FREE_KIB )); then
+  echo 'Not enough free disk space to create a local backup safely' >&2
+  exit 1
+fi
+
+exec 9>"${LOCK_FILE}"
+flock -n 9 || exit 0
+
+readonly BUILD_DIR="$(mktemp -d "${BACKUP_ROOT}/.build.XXXXXX")"
+trap 'rm -rf "${BUILD_DIR}"' EXIT
+
+mkdir -p "${BUILD_DIR}/md-notes/spaces" "${BUILD_DIR}/md-notes/config" "${BUILD_DIR}/md-notes/application"
+rsync -a --delete --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= "${NOTE_SPACES_DIR}/" "${BUILD_DIR}/md-notes/spaces/"
+rsync -a --delete --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= \
+  --exclude=.env --exclude=vendor --exclude=node_modules --exclude=storage --exclude=bootstrap/cache --exclude=database/database.sqlite \
+  "${MD_NOTES_DIR}/app/" "${BUILD_DIR}/md-notes/application/"
+
+docker compose -f "${MD_NOTES_DIR}/compose.yml" exec -T db sh -c \
+  'exec mysqldump --single-transaction --routines --events --no-tablespaces --skip-dump-date --set-gtid-purged=OFF -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+  > "${BUILD_DIR}/md-notes/database.sql"
+
+install -m 600 "${MD_NOTES_DIR}/db.env" "${BUILD_DIR}/md-notes/config/db.env"
+install -m 600 "${MD_NOTES_DIR}/app/.env" "${BUILD_DIR}/md-notes/config/app.env"
+install -m 644 "${MD_NOTES_DIR}/compose.yml" "${BUILD_DIR}/md-notes/config/compose.yml"
+install -m 644 "${MD_NOTES_DIR}/Dockerfile" "${BUILD_DIR}/md-notes/config/Dockerfile"
+rsync -a --delete "${MD_NOTES_DIR}/docker/" "${BUILD_DIR}/md-notes/config/docker/"
+
+changes="$(rsync -r --perms --delete --checksum --omit-dir-times --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= --itemize-changes --out-format='%i %n' "${BUILD_DIR}/" "${CURRENT_DIR}/")"
+if [[ -n "${changes}" ]]; then
+  snapshot_id="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+  snapshot_dir="${SNAPSHOTS_DIR}/${snapshot_id}"
+  previous_snapshot="$(find "${SNAPSHOTS_DIR}" -mindepth 1 -maxdepth 1 -type d -name '20*' -printf '%f\n' | sort | tail -n 1)"
+  if [[ -n "${previous_snapshot}" ]]; then
+    rsync -a --delete --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= --link-dest="${SNAPSHOTS_DIR}/${previous_snapshot}" "${CURRENT_DIR}/" "${snapshot_dir}/"
+  else
+    rsync -a --delete --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= "${CURRENT_DIR}/" "${snapshot_dir}/"
+  fi
+  printf 'Created local snapshot %s\n' "${snapshot_id}"
+else
+  printf 'Local backup is already current; no snapshot created\n'
+fi
+
+find "${SNAPSHOTS_DIR}" -mindepth 1 -maxdepth 1 -type d -name '20*' -mtime +"${RETENTION_DAYS}" -exec rm -rf -- {} +

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# The rclone crypt remote encrypts contents and names before Backblaze B2.
+readonly LOCAL_BACKUP_DIR=/var/backups/md-notes/current
+readonly CURRENT_DESTINATION=crypt-md-notes:current
+readonly HISTORY_DESTINATION=crypt-md-notes:history
+readonly SNAPSHOT_ID="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+readonly LOCK_FILE=/run/lock/md-notes-backblaze-backup.lock
+
+exec 9>"${LOCK_FILE}"
+flock -n 9 || exit 0
+/usr/local/sbin/backup-md-notes-local
+
+if [[ ! -d "${LOCAL_BACKUP_DIR}/md-notes/spaces" || ! -f "${LOCAL_BACKUP_DIR}/md-notes/database.sql" ]]; then
+  echo 'No complete local md-notes backup is available yet' >&2
+  exit 1
+fi
+
+rclone sync "${LOCAL_BACKUP_DIR}" "${CURRENT_DESTINATION}" \
+  --backup-dir="${HISTORY_DESTINATION}/${SNAPSHOT_ID}" --create-empty-src-dirs --fast-list --checkers=8 --transfers=4 --stats=30s
+rclone check "${LOCAL_BACKUP_DIR}" "${CURRENT_DESTINATION}" --size-only --one-way
