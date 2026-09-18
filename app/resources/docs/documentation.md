@@ -80,7 +80,7 @@ curl --fail-with-body -X PUT \
   https://md.mateo.ovh/api/notes/Clase/apuntes.md
 ```
 
-La API acepta únicamente archivos `.md` de hasta 5 MiB y crea las carpetas necesarias. El contenido subido también entra en el historial de versiones.
+La API acepta únicamente archivos `.md` de hasta 5 MiB y crea las carpetas necesarias. Puedes enviar el archivo Markdown en crudo, como en el ejemplo, o enviar JSON con un campo `content`. El contenido subido también entra en el historial de versiones.
 
 ## Tema y dispositivos
 

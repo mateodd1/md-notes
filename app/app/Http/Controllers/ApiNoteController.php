@@ -7,6 +7,7 @@ use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -31,6 +32,20 @@ class ApiNoteController extends Controller
 
         $content = $request->getContent();
 
+        if ($request->isJson()) {
+            $payload = $request->json()->all();
+            if (! array_key_exists('content', $payload) || ! is_string($payload['content'])) {
+                return response()->json([
+                    'message' => __('ui.api_content_required'),
+                    'errors' => ['content' => [__('ui.api_content_required')]],
+                ], 422);
+            }
+
+            $content = $payload['content'];
+        } elseif ($request->request->has('content')) {
+            $content = (string) $request->request->get('content');
+        }
+
         if (strlen($content) > self::MAX_CONTENT_BYTES) {
             return response()->json([
                 'message' => 'The Markdown file may not exceed 5 MiB.',
@@ -42,9 +57,18 @@ class ApiNoteController extends Controller
             $this->history->record($request->user(), $path, $content);
             $this->media->pruneUnreferenced($request->user());
         } catch (RuntimeException $exception) {
+            $message = trim($exception->getMessage());
+            if ($message === '') {
+                Log::warning('Markdown API upload was rejected without an error message.', [
+                    'user_id' => $request->user()?->getKey(),
+                    'path' => $path,
+                ]);
+                $message = __('ui.api_upload_failed');
+            }
+
             return response()->json([
-                'message' => $exception->getMessage(),
-                'errors' => ['content' => [$exception->getMessage()]],
+                'message' => $message,
+                'errors' => ['content' => [$message]],
             ], 422);
         }
 

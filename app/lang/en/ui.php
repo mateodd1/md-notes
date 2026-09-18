@@ -25,6 +25,8 @@ return [
     'your_name' => 'This is the name shown in your profile.',
     'save_name' => 'Save name',
     'api_access' => 'API access',
+    'api_content_required' => 'Send the Markdown as plain text or inside the JSON "content" field.',
+    'api_upload_failed' => 'The Markdown file could not be saved. Check your storage quota and try again.',
     'api_access_help' => 'Create and manage your personal access tokens.',
     'api_documentation' => 'Read the documentation to learn how to use the API.',
     'api_token_name' => 'Token name',

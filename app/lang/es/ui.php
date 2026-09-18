@@ -25,6 +25,8 @@ return [
     'your_name' => 'Es el nombre que verás en tu perfil.',
     'save_name' => 'Guardar nombre',
     'api_access' => 'Acceso API',
+    'api_content_required' => 'Envía el contenido Markdown como texto sin formato o dentro del campo JSON "content".',
+    'api_upload_failed' => 'No se pudo guardar el archivo Markdown. Comprueba la cuota y vuelve a intentarlo.',
     'api_access_help' => 'Crea y gestiona tus tokens personales de acceso.',
     'api_documentation' => 'Consulta la documentación para aprender a usar la API.',
     'api_token_name' => 'Nombre del token',

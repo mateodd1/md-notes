@@ -80,7 +80,7 @@ curl --fail-with-body -X PUT \
   https://md.mateo.ovh/api/notes/Class/notes.md
 ```
 
-The API accepts only `.md` files up to 5 MiB and creates any missing folders. Uploaded content is also added to version history.
+The API accepts only `.md` files up to 5 MiB and creates any missing folders. You can send the Markdown file as a raw body, as in the example, or send JSON with a `content` field. Uploaded content is also added to version history.
 
 ## Theme and devices
 
