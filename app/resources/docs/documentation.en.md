@@ -77,7 +77,7 @@ Create a personal token in your profile to upload Markdown notes from the termin
 curl --fail-with-body -X PUT \
   -H "Authorization: Bearer YOUR_TOKEN" \
   --data-binary @notes.md \
-  https://md.mateo.ovh/api/notes/Class/notes.md
+  https://mdnotes.net/api/notes/Class/notes.md
 ```
 
 The API accepts only `.md` files up to 5 MiB and creates any missing folders. You can send the Markdown file as a raw body, as in the example, or send JSON with a `content` field. Uploaded content is also added to version history.

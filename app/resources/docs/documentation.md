@@ -77,7 +77,7 @@ En el perfil puedes crear un token personal para subir notas Markdown desde la t
 curl --fail-with-body -X PUT \
   -H "Authorization: Bearer TU_TOKEN" \
   --data-binary @apuntes.md \
-  https://md.mateo.ovh/api/notes/Clase/apuntes.md
+  https://mdnotes.net/api/notes/Clase/apuntes.md
 ```
 
 La API acepta únicamente archivos `.md` de hasta 5 MiB y crea las carpetas necesarias. Puedes enviar el archivo Markdown en crudo, como en el ejemplo, o enviar JSON con un campo `content`. El contenido subido también entra en el historial de versiones.

@@ -5,7 +5,7 @@ Un espacio de apuntes privado, rápido y centrado en archivos Markdown reales.
 **md-notes** combina una interfaz de escritura cómoda con la libertad de conservar las notas como archivos `.md`, organizados en carpetas y aislados por cuenta. Está pensado para clase, proyectos personales y cualquier colección de notas que quieras conservar bajo tu control.
 
 <p align="center">
-  <a href="https://md.mateo.ovh">Abrir md-notes</a> · <a href="https://github.com/mateodd1/md-notes">Código fuente</a>
+  <a href="https://mdnotes.net">Abrir md-notes</a> · <a href="https://github.com/mateodd1/md-notes">Código fuente</a>
 </p>
 
 > La raíz presenta el servicio y el espacio de trabajo privado está en `/app`.
@@ -45,7 +45,7 @@ Los archivos y carpetas se pueden crear, renombrar, mover o eliminar con clic de
 Desde el menú contextual de cualquier `.md` se puede crear una URL corta como:
 
 ```text
-https://md.mateo.ovh/share/ABCDE
+https://mdnotes.net/share/ABCDE
 ```
 
 El receptor solo ve una versión renderizada de esa nota. Puedes cambiar la duración o revocar el enlace desde **Perfil → Compartidos**. Las imágenes y archivos adjuntos de una nota compartida se sirven únicamente mientras su enlace siga activo.
@@ -58,7 +58,7 @@ En **Perfil → Acceso API** puedes crear un token personal, que se muestra una 
 curl --fail-with-body -X PUT \
   -H "Authorization: Bearer TU_TOKEN" \
   --data-binary @apuntes.md \
-  https://md.mateo.ovh/api/notes/Clase/apuntes.md
+  https://mdnotes.net/api/notes/Clase/apuntes.md
 ```
 
 - Endpoint: `PUT /api/notes/{ruta}.md`
@@ -126,6 +126,17 @@ docker compose exec -T app php artisan migrate --force
 ```
 
 El servicio `app` se conecta a la red del proxy `nginx-pm_default`; configura allí tu dominio y TLS. MySQL no publica ningún puerto al exterior.
+
+### Dominio canónico y migraciones
+
+El dominio canónico de producción es `https://mdnotes.net`. Configura `APP_URL` con ese valor y conserva los dominios anteriores en `MD_NOTES_LEGACY_HOSTS`, separados por comas. La aplicación responde con una redirección permanente `308`, manteniendo método, ruta y parámetros; así funcionan enlaces compartidos, adjuntos, API y URLs antiguas.
+
+```dotenv
+APP_URL=https://mdnotes.net
+MD_NOTES_LEGACY_HOSTS=md.mateo.ovh
+```
+
+En el proxy crea un host HTTPS independiente para el nuevo dominio que apunte a `md-notes-app:80` y mantén activo el host del dominio anterior. No combines ambos hosts bajo un certificado antiguo: emite un certificado TLS válido para el dominio nuevo antes de activar la redirección.
 
 ## Persistencia y copias
 

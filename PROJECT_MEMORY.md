@@ -4,7 +4,7 @@ Documento de referencia para mantener y ampliar la aplicación. No contiene cont
 
 ## Propósito
 
-`md-notes` es el espacio privado de apuntes de Mateo, disponible en `https://md.mateo.ovh`. Guarda notas Markdown reales (`.md`) y las organiza en carpetas, con una interfaz de edición y previsualización simultánea.
+`md-notes` es el espacio privado de apuntes de Mateo, disponible en `https://mdnotes.net`. Guarda notas Markdown reales (`.md`) y las organiza en carpetas, con una interfaz de edición y previsualización simultánea. `md.mateo.ovh` se conserva como dominio legado y redirige permanentemente al mismo path y parámetros en el dominio nuevo.
 
 La raíz pública (/) es una landing bilingüe con presentación y llamadas a crear cuenta o iniciar sesión; el espacio de trabajo autenticado vive bajo /app.
 
@@ -14,6 +14,7 @@ La raíz pública (/) es una landing bilingüe con presentación y llamadas a cr
 - Aplicación Laravel: `/root/docker/md-notes/app`.
 - Servicios Compose: `md-notes-app` (PHP 8.4 + Apache/Laravel 13) y `md-notes-db` (MySQL 8.4). La app espera a que MySQL esté sano antes de arrancar.
 - El proxy inverso se conecta mediante la red Docker externa `nginx-pm_default`.
+- `mdnotes.net` es el dominio canónico (`APP_URL`). `RedirectLegacyDomain` devuelve un `308` desde cada host de `MD_NOTES_LEGACY_HOSTS` —actualmente `md.mateo.ovh`— hacia la misma ruta y consulta del dominio canónico. Los dos dominios tienen hosts HTTPS independientes en Nginx Proxy Manager, ambos hacia `md-notes-app:80`.
 - El volumen `./data` se monta como `storage/app/private/spaces`; la aplicación no guarda los Markdown en la base de datos.
 - Base de datos de producción: MySQL, con volumen persistente `mysql/`. Las credenciales viven en `db.env` (modo 600) y en el `.env` no versionado de Laravel; nunca se deben incluir en documentación ni salidas de terminal.
 - La antigua `app/database/database.sqlite` se conserva solo como origen/recuperación de la migración. Hay una copia previa a MySQL en `migration-backups/`.
@@ -44,7 +45,7 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 
 ## Notas, carpetas y navegación
 
-- Las notas usan rutas directas dentro del espacio de trabajo, por ejemplo `https://md.mateo.ovh/app/Clase/tema-1.md`; no hay prefijo `/nota`.
+- Las notas usan rutas directas dentro del espacio de trabajo, por ejemplo `https://mdnotes.net/app/Clase/tema-1.md`; no hay prefijo `/nota`.
 - Las rutas públicas de autenticación están en inglés: `/login`, `/singup`, `/forgot-password` y `/reset-password`. Las funciones autenticadas del espacio de trabajo (notas, carpetas, ajustes, adjuntos, historial, descargas y enlaces gestionados) se agrupan bajo `/app`.
 - Panel lateral con árbol de carpetas y ficheros `.md`.
 - En cada nivel del árbol, los archivos `.md` aparecen antes que las carpetas. Ambos grupos admiten orden manual independiente por arrastre y conservan ese orden por usuario y carpeta.
@@ -85,7 +86,7 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 - Desde el menú contextual de una nota, “Compartir enlace” aparece antes del separador y no obliga a abrir la nota que se comparte.
 - Crear un enlace vuelve a la página que ya estaba abierta y presenta el enlace generado en un modal, con botón para copiar.
 - Las duraciones disponibles son 1 hora, 24 horas, 7 días o sin caducidad; los selectores usan controles visuales propios, no el desplegable nativo del navegador.
-- Las URLs públicas tienen la forma `https://md.mateo.ovh/share/ABCDE`.
+- Las URLs públicas tienen la forma `https://mdnotes.net/share/ABCDE`.
 - Cada token tiene cinco caracteres y usa `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, evitando `0/O` e `1/I`.
 - Las rutas públicas son de solo lectura, están limitadas por tasa y verifican la caducidad antes de mostrar el Markdown.
 - Las imágenes y archivos de una nota compartida se reescriben a `/share/{token}/media/{filename}` tanto si el Markdown usa la ruta histórica `/media/...` como la actual `/app/media/...`. Esa ruta comprueba que el enlace siga activo y que el adjunto esté referenciado por la nota compartida, por lo que no requiere sesión ni expone otros adjuntos privados del propietario.
@@ -100,7 +101,7 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 - El borrado exige la contraseña actual y elimina el espacio Markdown, el usuario, sus versiones y sus enlaces compartidos.
 - El perfil incluye “Acceso API” (excepto en demo) para crear y revocar tokens personales. El secreto solo se muestra al crearlo y en la base de datos solo se guarda su hash.
 - Perfil incluye “Descargar mis datos”. Genera un ZIP privado con los Markdown, adjuntos, metadatos de orden, historial, enlaces compartidos, perfil y metadatos de tokens API (nunca secretos ni hashes de contraseña). Se solicita como máximo una vez por usuario y día; solo al segundo intento se muestra el aviso. El correo contiene un enlace con token aleatorio de 64 caracteres, guardado únicamente como hash, válido 24 horas. Los ZIP se guardan fuera de la web en `storage/app/private/account-exports`, se eliminan al caducar y al borrar la cuenta. La tabla es `account_exports` y la migración `2026_09_17_000007_create_account_exports_table.php`.
-- La API usa `Authorization: Bearer mdn_...` y `PUT /api/notes/{ruta}.md` (máximo 5 MiB). Acepta el cuerpo como Markdown crudo o JSON con el campo `content`, crea las carpetas que falten, crea o actualiza el archivo y registra su historial. Ejemplo: `curl --fail-with-body -X PUT -H "Authorization: Bearer TU_TOKEN" --data-binary @apuntes.md https://md.mateo.ovh/api/notes/Clase/apuntes.md`.
+- La API usa `Authorization: Bearer mdn_...` y `PUT /api/notes/{ruta}.md` (máximo 5 MiB). Acepta el cuerpo como Markdown crudo o JSON con el campo `content`, crea las carpetas que falten, crea o actualiza el archivo y registra su historial. Ejemplo: `curl --fail-with-body -X PUT -H "Authorization: Bearer TU_TOKEN" --data-binary @apuntes.md https://mdnotes.net/api/notes/Clase/apuntes.md`.
 - Después de registrarse se envía un correo de bienvenida mediante el SMTP configurado y, si la cuenta nace sin notas importadas, se crea `Bienvenida.md` o `Welcome.md` con un resumen de la plataforma. Si el envío falla, la cuenta y su nota se crean igualmente y el error queda registrado.
 
 ## Cuenta de demostración
