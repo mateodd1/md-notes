@@ -103,7 +103,11 @@ class ShareController extends Controller
         return view('shares.show', [
             'title' => Str::beforeLast(basename($share->path), '.'),
             'path' => $share->path,
-            'rendered' => Str::markdown($this->withSharedMediaUrls($share, $content), ['html_input' => 'strip', 'allow_unsafe_links' => false]),
+            'rendered' => Str::markdown($this->withSharedMediaUrls($share, $content), [
+                'html_input' => 'strip',
+                'allow_unsafe_links' => false,
+                'renderer' => ['soft_break' => "<br>\n"],
+            ]),
         ]);
     }
 

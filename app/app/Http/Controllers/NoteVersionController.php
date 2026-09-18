@@ -47,7 +47,11 @@ class NoteVersionController extends Controller
     {
         $version = $this->ownedVersion($request, $version);
         $title = Str::beforeLast(basename($version->path), '.');
-        $rendered = Str::markdown($version->content, ['html_input' => 'strip', 'allow_unsafe_links' => false]);
+        $rendered = Str::markdown($version->content, [
+            'html_input' => 'strip',
+            'allow_unsafe_links' => false,
+            'renderer' => ['soft_break' => "<br>\n"],
+        ]);
 
         if ($request->expectsJson()) {
             return response()->json([

@@ -84,7 +84,7 @@ class NotesTest extends TestCase
             'is_admin' => true,
         ]);
         $spaces = Mockery::mock(NoteSpace::class);
-        $spaces->shouldReceive('read')->once()->withArgs(fn (User $owner, string $path): bool => $owner->is($user) && $path === 'Clase/Lectura.md')->andReturn("# Lectura\n\nTexto con `código`.");
+        $spaces->shouldReceive('read')->once()->withArgs(fn (User $owner, string $path): bool => $owner->is($user) && $path === 'Clase/Lectura.md')->andReturn("# Lectura\n\nPrimera línea\nSegunda línea con `código`.");
         $spaces->shouldReceive('tree')->once()->withArgs(fn (User $owner): bool => $owner->is($user))->andReturn([[
             'type' => 'folder', 'name' => 'Clase', 'path' => 'Clase', 'collapsed' => true, 'pinned' => false,
             'children' => [['type' => 'note', 'name' => 'Lectura', 'path' => 'Clase/Lectura.md', 'pinned' => false]],
@@ -97,6 +97,7 @@ class NotesTest extends TestCase
             ->assertSee('<div class="preview-document">', false)
             ->assertSee(__('ui.edit'))
             ->assertSee('<h1>Lectura</h1>', false)
+            ->assertSee("Primera línea<br>\nSegunda línea", false)
             ->assertSee('<code>código</code>', false)
             ->assertSee('<details class="tree-folder"  open', false)
             ->assertSee('assets/md-notes-workspace.css', false);

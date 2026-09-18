@@ -59,12 +59,13 @@ class ShareTest extends TestCase
             'token' => 'A2BCD',
         ]);
         $spaces = Mockery::mock(NoteSpace::class);
-        $spaces->shouldReceive('read')->once()->withArgs(fn (User $owner, string $path): bool => $owner->is($user) && $path === 'Clase/Apuntes.md')->andReturn('# Apuntes');
+        $spaces->shouldReceive('read')->once()->withArgs(fn (User $owner, string $path): bool => $owner->is($user) && $path === 'Clase/Apuntes.md')->andReturn("# Apuntes\n\nPrimera línea\nSegunda línea");
         $this->app->instance(NoteSpace::class, $spaces);
 
         $this->get(route('shares.show', ['token' => 'A2BCD']))
             ->assertOk()
             ->assertSee('Apuntes')
+            ->assertSee("Primera línea<br>\nSegunda línea", false)
             ->assertSee(__('ui.shared_note'))
             ->assertSee('◐ '.__('ui.theme'))
             ->assertSee('padding:26px clamp(18px,12vw,260px)', false)

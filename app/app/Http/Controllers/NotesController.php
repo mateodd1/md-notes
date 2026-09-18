@@ -336,7 +336,7 @@ class NotesController extends Controller
         return view('trash.show', [
             'item' => $item,
             'title' => Str::beforeLast(basename($item['original_path']), '.'),
-            'rendered' => Str::markdown($item['content'], ['html_input' => 'strip', 'allow_unsafe_links' => false]),
+            'rendered' => $this->renderMarkdown($item['content']),
         ]);
     }
 
@@ -391,8 +391,17 @@ class NotesController extends Controller
             'path' => $path,
             'content' => $content,
             'title' => $path === null ? __('ui.your_notes') : Str::beforeLast(basename($path), '.'),
-            'rendered' => $path === null ? '' : Str::markdown($content, ['html_input' => 'strip', 'allow_unsafe_links' => false]),
+            'rendered' => $path === null ? '' : $this->renderMarkdown($content),
             'quota' => $this->quota->summary($request->user()),
+        ]);
+    }
+
+    private function renderMarkdown(string $content): string
+    {
+        return Str::markdown($content, [
+            'html_input' => 'strip',
+            'allow_unsafe_links' => false,
+            'renderer' => ['soft_break' => "<br>\n"],
         ]);
     }
 }
