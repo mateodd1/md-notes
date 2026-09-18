@@ -92,12 +92,33 @@ class NoteSpace
 
     public function writeFromApi(User $user, string $path, string $content, bool $snapshot = true): bool
     {
-        $file = $this->filePath($user, $path, mustExist: false);
-        $directory = dirname($file);
-
-        if (! is_dir($directory) && ! mkdir($directory, 0770, true) && ! is_dir($directory)) {
-            throw new RuntimeException(__('ui.cannot_create_folder'));
+        $normalized = $this->normalize($path);
+        if (! Str::endsWith(Str::lower($normalized), '.md')) {
+            abort(404);
         }
+
+        $root = $this->root($user);
+        $segments = explode('/', $normalized);
+        $filename = array_pop($segments);
+
+        // Create missing parents one at a time, checking each resolved path so
+        // a symlink inside the user's space cannot escape the space root.
+        $directory = $root;
+        foreach ($segments as $segment) {
+            $directory .= '/'.$segment;
+            if (is_link($directory)) {
+                abort(404);
+            }
+
+            if (! is_dir($directory) && ! mkdir($directory, 0770) && ! is_dir($directory)) {
+                throw new RuntimeException(__('ui.cannot_create_folder'));
+            }
+
+            $this->assertContained($root, $directory, true);
+        }
+
+        $file = $directory.'/'.$filename;
+        $this->assertContained($root, $file, false);
 
         if (! is_writable($directory)) {
             throw new RuntimeException(__('ui.destination_folder_unavailable'));

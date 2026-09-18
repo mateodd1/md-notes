@@ -60,6 +60,18 @@ class NoteSpaceIsolationTest extends TestCase
         $this->assertSame([], $spaces->tree($user));
     }
 
+    public function test_api_upload_creates_missing_nested_folders_inside_the_users_space(): void
+    {
+        $user = new User(['name' => 'Propietario', 'email' => 'api@example.test']);
+        $user->setAttribute('id', 304);
+        $spaces = new NoteSpace($this->spacePath);
+
+        $created = $spaces->writeFromApi($user, 'XDP/SECONDARY-DEPLOYMENT.md', '# Secondary deployment', snapshot: false);
+
+        $this->assertTrue($created);
+        $this->assertSame('# Secondary deployment', $spaces->read($user, 'XDP/SECONDARY-DEPLOYMENT.md'));
+    }
+
     public function test_a_deleted_note_is_kept_in_trash_and_can_be_restored(): void
     {
         $user = new User(['name' => 'Propietario', 'email' => 'propietario@example.test']);
