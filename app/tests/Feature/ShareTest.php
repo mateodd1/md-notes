@@ -66,7 +66,9 @@ class ShareTest extends TestCase
             ->assertOk()
             ->assertSee('Apuntes')
             ->assertSee(__('ui.shared_note'))
-            ->assertSee(__('ui.appearance'));
+            ->assertSee(__('ui.appearance'))
+            ->assertSee('padding:26px clamp(18px,12vw,260px)', false)
+            ->assertSee('max-width:1440px', false);
     }
 
     public function test_a_share_rewrites_media_urls_from_before_and_after_the_app_prefix(): void

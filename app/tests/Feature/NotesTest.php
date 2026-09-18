@@ -94,6 +94,7 @@ class NotesTest extends TestCase
         $this->actingAs($user)->get(route('notes.show', ['path' => 'Clase/Lectura.md']))
             ->assertOk()
             ->assertSee('id="editor-layout" class="editor-layout is-reading"', false)
+            ->assertSee('<div class="preview-document">', false)
             ->assertSee(__('ui.edit'))
             ->assertSee('<h1>Lectura</h1>', false)
             ->assertSee('<code>código</code>', false)
