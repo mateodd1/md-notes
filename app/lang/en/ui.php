@@ -127,6 +127,7 @@ return [
     'never' => 'Never expires',
     'shared_note' => 'Shared note',
     'appearance' => 'Appearance',
+    'theme' => 'Theme',
     'system_theme' => 'System setting',
     'light_mode' => 'Light mode',
     'dark_mode' => 'Dark mode',

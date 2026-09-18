@@ -8,7 +8,7 @@
 
 @section('body')
 <main class="shared-shell">
-    <header class="shared-header"><span class="shared-brand">✦ md-notes</span><div class="shared-header-right"><span>{{ __('ui.shared_note') }}</span><details class="shared-theme"><summary>{{ __('ui.appearance') }}</summary><div class="shared-theme-menu"><button type="button" data-share-theme="system">◐ {{ __('ui.system_theme') }}</button><button type="button" data-share-theme="light">☀ {{ __('ui.light_mode') }}</button><button type="button" data-share-theme="dark">☾ {{ __('ui.dark_mode') }}</button></div></details></div></header>
+    <header class="shared-header"><span class="shared-brand">✦ md-notes</span><div class="shared-header-right"><span>{{ __('ui.shared_note') }}</span><details class="shared-theme"><summary>◐ {{ __('ui.theme') }}</summary><div class="shared-theme-menu"><button type="button" data-share-theme="system">◐ {{ __('ui.system_theme') }}</button><button type="button" data-share-theme="light">☀ {{ __('ui.light_mode') }}</button><button type="button" data-share-theme="dark">☾ {{ __('ui.dark_mode') }}</button></div></details></div></header>
     <article class="shared-note"><h1>{{ $title }}</h1><div class="shared-path">{{ $path }}</div><div class="shared-content">{!! $rendered !!}</div></article>
 </main>
 <script>

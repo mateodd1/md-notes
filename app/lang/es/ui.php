@@ -127,6 +127,7 @@ return [
     'never' => 'Sin caducidad',
     'shared_note' => 'Nota compartida',
     'appearance' => 'Apariencia',
+    'theme' => 'Tema',
     'system_theme' => 'Según el sistema',
     'light_mode' => 'Modo claro',
     'dark_mode' => 'Modo oscuro',
