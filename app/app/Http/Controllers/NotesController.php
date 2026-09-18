@@ -116,6 +116,19 @@ class NotesController extends Controller
         }, basename($path), ['Content-Type' => 'text/markdown; charset=UTF-8']);
     }
 
+    public function properties(Request $request, string $path): JsonResponse
+    {
+        $user = $request->user();
+        $properties = $this->spaces->noteProperties($user, $path);
+        $attachments = $this->media->attachmentSummary($user, $this->spaces->read($user, $path));
+
+        return response()->json([
+            ...$properties,
+            ...$attachments,
+            'total_bytes' => $properties['markdown_bytes'] + $attachments['attachments_bytes'],
+        ]);
+    }
+
     public function move(Request $request): RedirectResponse|JsonResponse
     {
         $data = $request->validate([

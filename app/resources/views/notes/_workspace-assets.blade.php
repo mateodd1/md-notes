@@ -12,6 +12,7 @@
             'reorderNotes' => route('notes.reorder'),
             'reorderFolders' => route('folders.reorder'),
             'media' => route('media.store'),
+            'properties' => url('/app/properties'),
         ],
     ];
 @endphp

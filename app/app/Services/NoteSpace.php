@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\NoteVersion;
 use App\Models\User;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
@@ -57,6 +58,22 @@ class NoteSpace
         }
 
         return (string) file_get_contents($file);
+    }
+
+    /** @return array{created_at: string, markdown_bytes: int} */
+    public function noteProperties(User $user, string $path): array
+    {
+        $file = $this->filePath($user, $path);
+        $firstVersion = NoteVersion::query()
+            ->where('user_id', $user->getKey())
+            ->where('path', $this->normalize($path))
+            ->oldest('created_at')
+            ->first(['created_at']);
+
+        return [
+            'created_at' => $firstVersion?->created_at?->toIso8601String() ?? date(DATE_ATOM, (int) filemtime($file)),
+            'markdown_bytes' => (int) filesize($file),
+        ];
     }
 
     public function write(User $user, string $path, string $content, bool $snapshot = false): void

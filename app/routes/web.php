@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\NotesController;
 use App\Http\Controllers\NoteVersionController;
 use App\Http\Controllers\NoteMediaController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\ShareController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
+Route::get('/documentation.md', [DocumentationController::class, 'show'])->name('documentation');
 
 Route::get('/account-export/{token}', [ProfileController::class, 'downloadAccountExport'])
     ->where('token', '[a-f0-9]{64}')
@@ -72,6 +74,7 @@ Route::middleware('auth')->prefix('app')->group(function (): void {
     Route::get('/trash', [NotesController::class, 'trashIndex'])->name('trash.index');
     Route::post('/trash/{id}/restore', [NotesController::class, 'restoreTrash'])->where('id', '\\d{14}-[a-f0-9]{16}')->name('trash.restore');
     Route::delete('/trash/{id}', [NotesController::class, 'destroyTrash'])->where('id', '\\d{14}-[a-f0-9]{16}')->name('trash.destroy');
+    Route::get('/properties/{path}', [NotesController::class, 'properties'])->where('path', '.*\.md')->name('notes.properties');
     Route::get('/download/{path}', [NotesController::class, 'download'])->where('path', '.*\.md')->name('notes.download');
     Route::get('/{path}', [NotesController::class, 'show'])->where('path', '.*\.md')->name('notes.show');
     Route::put('/{path}', [NotesController::class, 'update'])->where('path', '.*\.md')->name('notes.update');

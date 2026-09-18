@@ -130,6 +130,8 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 - `note_versions` es la tabla de historial, creada por la migración `2026_09_16_000003_create_note_versions_table.php`.
 - El historial de versiones cuenta para la cuota de 100 MiB de cada usuario. Al guardar una instantánea se calcula el uso resultante considerando la retención (50 versiones por nota y 7 días); superar el límite responde con un error de validación, nunca con un 500.
 - Los enlaces compartidos nuevos usan cinco caracteres de `0123456789ABCDEFGHJKLMNPQRSTUVWXYZ`; las rutas también aceptan los enlaces heredados de siete caracteres.
+- El menú contextual de cada `.md` incluye “Propiedades”. Abre una ventana con su fecha de creación, tamaño del Markdown, tamaño y número de imágenes/adjuntos referenciados y el total. La fecha procede de la primera versión guardada y, para notas antiguas sin historial, de la fecha disponible del archivo.
+- La documentación pública en español está en `app/resources/docs/documentation.md` y la inglesa en `app/resources/docs/documentation.en.md`. Se renderiza en `/documentation.md` sin autenticación, según el idioma del navegador, y se enlaza desde el menú de perfil. Resume el uso de notas, organización, adjuntos, historial, enlaces compartidos, papelera, cuota, privacidad, API, tema y copias de seguridad.
 
 ## Puntos de extensión recomendados
 

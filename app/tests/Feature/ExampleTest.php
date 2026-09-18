@@ -22,4 +22,22 @@ class ExampleTest extends TestCase
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     }
+
+    public function test_guests_can_open_the_markdown_documentation(): void
+    {
+        $this->withHeader('Accept-Language', 'es')->get(route('documentation'))
+            ->assertOk()
+            ->assertSee('Documentación de md-notes')
+            ->assertSee('API desde terminal')
+            ->assertSee('Authorization: Bearer TU_TOKEN', false);
+    }
+
+    public function test_documentation_is_shown_in_english_for_non_spanish_browsers(): void
+    {
+        $this->withHeader('Accept-Language', 'en')->get(route('documentation'))
+            ->assertOk()
+            ->assertSee('md-notes documentation')
+            ->assertSee('Terminal API')
+            ->assertSee('Authorization: Bearer YOUR_TOKEN', false);
+    }
 }

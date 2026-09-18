@@ -115,6 +115,36 @@ class NotesTest extends TestCase
             ->assertJsonStructure(['used', 'limit', 'available', 'percentage', 'used_human', 'limit_human']);
     }
 
+    public function test_a_note_properties_endpoint_includes_its_referenced_attachments(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+        ]);
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+        $spaces = $this->app->make(NoteSpace::class);
+        $path = $spaces->createNote($user, '', 'Propiedades');
+        $filename = 'abcdefghijklmnopqrstuvwx.pdf';
+        $content = "# Propiedades\n\n[Archivo]({$filename})\n";
+        $spaces->write($user, $path, $content);
+        File::ensureDirectoryExists($this->mediaPath.'/'.$user->id.'/.md-notes-media');
+        File::put($this->mediaPath.'/'.$user->id.'/.md-notes-media/'.$filename, 'datos');
+        NoteVersion::query()->create([
+            'user_id' => $user->id,
+            'path' => $path,
+            'content' => $content,
+        ]);
+
+        $this->actingAs($user)->get(route('notes.properties', ['path' => $path]))
+            ->assertOk()
+            ->assertJsonPath('markdown_bytes', strlen($content))
+            ->assertJsonPath('attachments_count', 1)
+            ->assertJsonPath('attachments_bytes', 5)
+            ->assertJsonPath('total_bytes', strlen($content) + 5)
+            ->assertJsonPath('created_at', fn (string $value): bool => str_contains($value, 'T'));
+    }
+
     public function test_a_user_can_open_the_history_of_their_own_note(): void
     {
         $user = User::query()->create([

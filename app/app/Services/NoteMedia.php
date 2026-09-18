@@ -63,6 +63,29 @@ class NoteMedia
         return array_key_exists((string) mime_content_type($path), self::EXTENSIONS);
     }
 
+    /** @return array{attachments_bytes: int, attachments_count: int} */
+    public function attachmentSummary(User $user, string $content): array
+    {
+        $directory = $this->spaces->root($user).'/.md-notes-media';
+        if (! is_dir($directory)) {
+            return ['attachments_bytes' => 0, 'attachments_count' => 0];
+        }
+
+        $bytes = 0;
+        $count = 0;
+        foreach (array_unique($this->filenamesIn($content)) as $filename) {
+            $path = $directory.'/'.$filename;
+            if (! is_file($path) || is_link($path)) {
+                continue;
+            }
+
+            $bytes += (int) filesize($path);
+            $count++;
+        }
+
+        return ['attachments_bytes' => $bytes, 'attachments_count' => $count];
+    }
+
     public function pruneUnreferenced(User $user): int
     {
         $root = $this->spaces->root($user);
@@ -111,8 +134,7 @@ class NoteMedia
                 continue;
             }
 
-            preg_match_all('/(?<![a-z0-9])[a-z0-9]{24}\.[a-z0-9]{1,10}(?![a-z0-9])/i', $content, $matches);
-            foreach ($matches[0] as $filename) {
+            foreach ($this->filenamesIn($content) as $filename) {
                 $referenced[Str::lower($filename)] = true;
             }
         }
@@ -122,8 +144,7 @@ class NoteMedia
             ->orderBy('id')
             ->cursor()
             ->each(function (NoteVersion $version) use (&$referenced): void {
-                preg_match_all('/(?<![a-z0-9])[a-z0-9]{24}\.[a-z0-9]{1,10}(?![a-z0-9])/i', $version->content, $matches);
-                foreach ($matches[0] as $filename) {
+                foreach ($this->filenamesIn($version->content) as $filename) {
                     $referenced[Str::lower($filename)] = true;
                 }
             });
@@ -140,6 +161,14 @@ class NoteMedia
         }
 
         return $directory;
+    }
+
+    /** @return array<int, string> */
+    private function filenamesIn(string $content): array
+    {
+        preg_match_all('/(?<![a-z0-9])[a-z0-9]{24}\.[a-z0-9]{1,10}(?![a-z0-9])/i', $content, $matches);
+
+        return array_map(Str::lower(...), $matches[0]);
     }
 
     private function extensionFor(UploadedFile $file): string
