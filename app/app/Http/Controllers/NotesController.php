@@ -329,6 +329,17 @@ class NotesController extends Controller
         ]);
     }
 
+    public function showTrash(Request $request, string $id): View
+    {
+        $item = $this->spaces->trashedNote($request->user(), $id);
+
+        return view('trash.show', [
+            'item' => $item,
+            'title' => Str::beforeLast(basename($item['original_path']), '.'),
+            'rendered' => Str::markdown($item['content'], ['html_input' => 'strip', 'allow_unsafe_links' => false]),
+        ]);
+    }
+
     public function restoreTrash(Request $request, string $id): RedirectResponse
     {
         try {

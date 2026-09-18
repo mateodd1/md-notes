@@ -14,6 +14,7 @@ return [
     'password_updated' => 'Contraseña actualizada.',
     'profile_settings' => 'Configuración del perfil',
     'back_to_notes' => 'Volver a notas',
+    'back_to_trash' => 'Volver a la papelera',
     'account_export' => 'Descargar mis datos',
     'account_export_help' => 'Recibirás por correo un enlace privado para descargar la información de tu cuenta.',
     'request_account_export' => 'Enviar enlace de descarga',

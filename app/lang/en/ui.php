@@ -14,6 +14,7 @@ return [
     'password_updated' => 'Password updated.',
     'profile_settings' => 'Profile settings',
     'back_to_notes' => 'Back to notes',
+    'back_to_trash' => 'Back to trash',
     'account_export' => 'Download my data',
     'account_export_help' => 'We will email you a private link to download your account information.',
     'request_account_export' => 'Send download link',

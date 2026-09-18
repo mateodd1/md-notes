@@ -340,6 +340,21 @@ class NoteSpace
         return $entries;
     }
 
+    /** @return array{id: string, original_path: string, history_path: string, type: string, deleted_at: string, content: string} */
+    public function trashedNote(User $user, string $id): array
+    {
+        $entry = $this->trashEntry($user, $id);
+        abort_unless($entry['type'] === 'note', 404);
+
+        $path = $this->trashDirectory($user, create: false).'/'.$entry['id'].'/content/'.$entry['original_path'];
+        $content = file_get_contents($path);
+        if ($content === false) {
+            throw new RuntimeException(__('ui.could_not_open_note'));
+        }
+
+        return [...$entry, 'content' => $content];
+    }
+
     /** @return array{id: string, original_path: string, history_path: string, type: string, deleted_at: string} */
     public function restoreTrash(User $user, string $id): array
     {

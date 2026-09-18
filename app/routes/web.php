@@ -72,6 +72,7 @@ Route::middleware('auth')->prefix('app')->group(function (): void {
     Route::patch('/item/pin', [NotesController::class, 'pin'])->name('items.pin');
     Route::delete('/item', [NotesController::class, 'destroyItem'])->name('items.destroy');
     Route::get('/trash', [NotesController::class, 'trashIndex'])->name('trash.index');
+    Route::get('/trash/{id}/view', [NotesController::class, 'showTrash'])->where('id', '\\d{14}-[a-f0-9]{16}')->name('trash.show');
     Route::post('/trash/{id}/restore', [NotesController::class, 'restoreTrash'])->where('id', '\\d{14}-[a-f0-9]{16}')->name('trash.restore');
     Route::delete('/trash/{id}', [NotesController::class, 'destroyTrash'])->where('id', '\\d{14}-[a-f0-9]{16}')->name('trash.destroy');
     Route::get('/properties/{path}', [NotesController::class, 'properties'])->where('path', '.*\.md')->name('notes.properties');

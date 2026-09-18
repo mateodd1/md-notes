@@ -290,6 +290,10 @@ class NotesTest extends TestCase
         $entry = $spaces->trashItems($user)[0];
         $this->assertDatabaseHas('note_versions', ['user_id' => $user->id, 'path' => $entry['history_path']]);
         $this->actingAs($user)->get(route('trash.index'))->assertOk()->assertSee('Papelera');
+        $this->actingAs($user)->get(route('trash.show', ['id' => $entry['id']]))
+            ->assertOk()
+            ->assertSee('<h1>Papelera</h1>', false)
+            ->assertDontSee('id="editor"', false);
         $this->withSession(['_token' => 'test-token'])->actingAs($user)->post(route('trash.restore', ['id' => $entry['id']]), ['_token' => 'test-token'])
             ->assertRedirect(route('notes.index'));
 
