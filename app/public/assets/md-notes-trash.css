@@ -1,0 +1,27 @@
+body.trash-preview-open { overflow:hidden; }
+.trash-preview { width:min(1040px,calc(100% - 36px)); max-width:none; max-height:calc(100vh - 36px); max-height:calc(100dvh - 36px); margin:auto; padding:0; overflow:hidden; border:1px solid var(--line); border-radius:15px; background:var(--paper); color:var(--ink); box-shadow:0 20px 60px #11182740; }
+.trash-preview[open] { display:flex; flex-direction:column; animation:md-notes-modal-card-in .22s cubic-bezier(.2,.8,.2,1) both; }
+.trash-preview::backdrop { background:#10182880; animation:md-notes-modal-backdrop-in .18s ease-out both; }
+.trash-preview.is-closing { animation:md-notes-modal-card-out .16s ease-in both; }
+.trash-preview.is-closing::backdrop { animation:md-notes-modal-backdrop-out .16s ease-in both; }
+.trash-preview-header { display:flex; flex:none; align-items:flex-start; justify-content:space-between; gap:18px; padding:20px 24px; border-bottom:1px solid var(--line); }
+.trash-preview-header > div { min-width:0; }
+.trash-preview-header h2 { margin:0; font-size:20px; letter-spacing:-.03em; overflow-wrap:anywhere; }
+.trash-preview-header p { margin:5px 0 0; color:var(--muted); font-size:13px; overflow-wrap:anywhere; }
+.trash-preview-header .button { flex:none; }
+.trash-preview-body { min-height:180px; overflow:auto; overscroll-behavior:contain; padding:24px; }
+.trash-preview-status { margin:0 0 16px; color:var(--muted); }
+.trash-preview-status.is-error { color:var(--danger); }
+.trash-preview-content { color:var(--ink); line-height:1.7; overflow-wrap:anywhere; }
+.trash-preview-content > :first-child { margin-top:0; }
+.trash-preview-content > :last-child { margin-bottom:0; }
+.trash-preview-content h1,.trash-preview-content h2,.trash-preview-content h3 { letter-spacing:-.035em; }
+.trash-preview-content pre { overflow:auto; padding:13px; border-radius:8px; background:var(--preview); }
+.trash-preview-content :not(pre) > code { padding:.12em .38em; border-radius:5px; background:var(--preview); font:600 .88em/1.35 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
+.trash-preview-content img { display:block; max-width:100%; height:auto; }
+.trash-preview-content a { color:var(--accent); font-weight:650; text-decoration:underline; text-underline-offset:3px; }
+.trash-preview-content table { display:block; max-width:100%; overflow:auto; border-collapse:collapse; }
+.trash-preview-content td,.trash-preview-content th { border:1px solid var(--line); padding:7px 10px; }
+.trash-preview-content blockquote { margin-inline:0; padding-left:16px; border-left:3px solid var(--line); color:var(--muted); }
+@media (max-width:600px) { .trash-preview { width:calc(100% - 24px); max-height:calc(100vh - 24px); max-height:calc(100dvh - 24px); }.trash-preview-header { gap:12px; padding:16px; }.trash-preview-header h2 { font-size:18px; }.trash-preview-body { padding:18px 16px; } }
+@media (prefers-reduced-motion:reduce) { .trash-preview[open],.trash-preview::backdrop { animation:none; } }

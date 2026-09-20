@@ -5,16 +5,27 @@ namespace Tests\Feature;
 use App\Models\SharedNote;
 use App\Models\User;
 use App\Services\NoteSpace;
+use Illuminate\Support\Facades\File;
 use Mockery;
 use Tests\TestCase;
 
 class ShareTest extends TestCase
 {
+    private string $mediaPath;
+
     protected function setUp(): void
     {
         file_put_contents('/tmp/md-notes-testing.sqlite', '');
         parent::setUp();
         $this->artisan('migrate:fresh --force')->assertSuccessful();
+        $this->mediaPath = sys_get_temp_dir().'/md-notes-shares-'.bin2hex(random_bytes(8));
+    }
+
+    protected function tearDown(): void
+    {
+        File::deleteDirectory($this->mediaPath);
+
+        parent::tearDown();
     }
 
     public function test_an_authenticated_user_can_create_a_short_temporary_share_link(): void
@@ -33,9 +44,9 @@ class ShareTest extends TestCase
             ->withHeader('referer', route('notes.show', ['path' => 'Otra.md']))
             ->actingAs($user)
             ->post(route('shares.store'), [
-            '_token' => 'test-token',
-            'path' => 'Clase/Apuntes.md',
-            'duration' => '24h',
+                '_token' => 'test-token',
+                'path' => 'Clase/Apuntes.md',
+                'duration' => '24h',
             ]);
 
         $response->assertRedirect(route('notes.show', ['path' => 'Otra.md']));
@@ -88,7 +99,7 @@ class ShareTest extends TestCase
         $oldFilename = 'abcdefghijklmnopqrstuvwx.png';
         $currentFilename = 'zyxwvutsrqponmlkjihgfedc.jpg';
         $spaces = Mockery::mock(NoteSpace::class);
-        $spaces->shouldReceive('read')->once()->andReturn("![](/media/{$oldFilename})\n![](/app/media/{$currentFilename})");
+        $spaces->shouldReceive('read')->once()->andReturn("![](https://md.mateo.ovh/media/{$oldFilename})\n![](https://mdnotes.net/app/media/{$currentFilename})");
         $this->app->instance(NoteSpace::class, $spaces);
 
         $response = $this->get(route('shares.show', ['token' => $share->token]));
@@ -96,6 +107,73 @@ class ShareTest extends TestCase
         $response->assertOk()
             ->assertSee(route('shares.media', ['token' => $share->token, 'filename' => $oldFilename]), false)
             ->assertSee(route('shares.media', ['token' => $share->token, 'filename' => $currentFilename]), false);
+    }
+
+    public function test_an_authenticated_user_can_copy_a_shared_note_and_its_attachments(): void
+    {
+        $owner = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+        ]);
+        $recipient = User::query()->create([
+            'name' => 'Ada',
+            'email' => 'ada@example.test',
+            'password' => 'otra-clave-segura',
+        ]);
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+        $spaces = $this->app->make(NoteSpace::class);
+        $filename = 'abcdefghijklmnopqrstuvwx.png';
+        $content = "# Apuntes\n\n![](https://mdnotes.net/app/media/{$filename})";
+        $spaces->writeFromApi($owner, 'Clase/Apuntes.md', $content, snapshot: false);
+        $ownerMedia = $spaces->root($owner).'/.md-notes-media';
+        File::ensureDirectoryExists($ownerMedia);
+        File::put($ownerMedia.'/'.$filename, 'shared image');
+        $share = SharedNote::query()->create([
+            'user_id' => $owner->id,
+            'path' => 'Clase/Apuntes.md',
+            'token' => 'A2BCD',
+        ]);
+
+        $this->actingAs($recipient)
+            ->get(route('shares.show', ['token' => $share->token]))
+            ->assertOk()
+            ->assertSee(__('ui.copy_to_your_space'));
+
+        $this->withSession(['_token' => 'test-token'])
+            ->actingAs($recipient)
+            ->post(route('shares.copy', ['token' => $share->token]), ['_token' => 'test-token'])
+            ->assertRedirect(route('notes.show', ['path' => 'Apuntes (copy).md']));
+
+        $copied = $spaces->read($recipient, 'Apuntes (copy).md');
+        $this->assertMatchesRegularExpression('/app\/media\/([a-z0-9]{24}\.png)/', $copied);
+        preg_match('/app\/media\/([a-z0-9]{24}\.png)/', $copied, $matches);
+        $this->assertNotSame($filename, $matches[1]);
+        $this->assertFileExists($spaces->root($recipient).'/.md-notes-media/'.$matches[1]);
+        $this->actingAs($recipient)->get(route('media.show', ['filename' => $matches[1]]))->assertOk();
+        $this->assertDatabaseHas('note_versions', ['user_id' => $recipient->id, 'path' => 'Apuntes (copy).md']);
+    }
+
+    public function test_a_share_owner_does_not_see_the_copy_to_space_action(): void
+    {
+        $owner = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+        ]);
+        $share = SharedNote::query()->create([
+            'user_id' => $owner->id,
+            'path' => 'Clase/Apuntes.md',
+            'token' => 'A2BCD',
+        ]);
+        $spaces = Mockery::mock(NoteSpace::class);
+        $spaces->shouldReceive('read')->once()->andReturn('# Apuntes');
+        $this->app->instance(NoteSpace::class, $spaces);
+
+        $this->actingAs($owner)
+            ->get(route('shares.show', ['token' => $share->token]))
+            ->assertOk()
+            ->assertDontSee(__('ui.copy_to_your_space'));
     }
 
     public function test_an_owner_can_manage_their_share_without_accessing_another_users_share(): void

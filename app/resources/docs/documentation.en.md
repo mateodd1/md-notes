@@ -18,6 +18,10 @@ md-notes is a private space for keeping class notes, ideas, and documentation in
 - You can **pin** files and folders. They appear with a pin in the sidebar.
 - Right-click a file to rename it, download it, share it, view its history, or open its properties.
 
+## Search notes
+
+Search titles and contents with **Search notes** in the sidebar or **Ctrl+K** (**⌘K** on Mac). Enter at least two characters and select a result to open it. Search does not include the trash or previous versions.
+
 ## Writing Markdown
 
 Reading mode renders Markdown. The editor has shortcuts for headings, bold, italic, lists, quotes, links, and code.

@@ -1,0 +1,48 @@
+name: Tests
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        database: [sqlite, mysql]
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: testing-only
+          MYSQL_DATABASE: mdnotes_testing
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping -h 127.0.0.1 -ptesting-only" --health-interval=5s --health-timeout=5s --health-retries=30
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXphYmNkZWY=
+      APP_URL: https://mdnotes.net
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'mysql' && 'mdnotes_testing' || '/tmp/md-notes-testing.sqlite' }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: testing-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, pdo_mysql, pdo_sqlite, zip
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+        working-directory: app
+      - run: php artisan test --compact
+        working-directory: app
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test app/tests/JavaScript/*.cjs
+      - run: bash ops/tests/backups.sh

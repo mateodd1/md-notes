@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Mail\WelcomeToMdNotes;
 use App\Models\User;
 use App\Services\NoteSpace;
-use App\Mail\WelcomeToMdNotes;
 use Illuminate\Support\Facades\Mail;
 use Mockery;
 use Tests\TestCase;
@@ -87,7 +87,7 @@ class RegistrationTest extends TestCase
     public function test_authentication_routes_use_the_new_english_paths(): void
     {
         $this->get('/login')->assertOk();
-        $this->get('/signup')->assertOk();
+        $this->get('/signup')->assertOk()->assertSee(__('ui.confirm_password'));
         $this->get('/singup')->assertNotFound();
         $this->get('/acceder')->assertNotFound();
         $this->get('/registro')->assertNotFound();

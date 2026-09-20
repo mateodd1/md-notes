@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\SharedNote;
+use App\Services\MarkdownMediaUrls;
 use App\Services\NoteMedia;
 use App\Services\NoteSpace;
+use App\Services\NoteVersionHistory;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,8 +24,9 @@ class ShareController extends Controller
     public function __construct(
         private readonly NoteSpace $spaces,
         private readonly NoteMedia $media,
-    ) {
-    }
+        private readonly MarkdownMediaUrls $mediaUrls,
+        private readonly NoteVersionHistory $history,
+    ) {}
 
     public function store(Request $request): RedirectResponse
     {
@@ -101,9 +104,10 @@ class ShareController extends Controller
         $content = $this->spaces->read($share->user, $share->path);
 
         return view('shares.show', [
+            'share' => $share,
             'title' => Str::beforeLast(basename($share->path), '.'),
             'path' => $share->path,
-            'rendered' => Str::markdown($this->withSharedMediaUrls($share, $content), [
+            'rendered' => Str::markdown($this->mediaUrls->forShare($share, $content), [
                 'html_input' => 'strip',
                 'allow_unsafe_links' => false,
                 'renderer' => ['soft_break' => "<br>\n"],
@@ -116,7 +120,7 @@ class ShareController extends Controller
         $share = $this->activeShare($token);
         $content = $this->spaces->read($share->user, $share->path);
 
-        abort_unless($this->mediaIsReferencedByNote($filename, $content), 404);
+        abort_unless($this->mediaUrls->isReferenced($filename, $content), 404);
 
         $path = $this->media->path($share->user, $filename);
         $headers = [
@@ -128,6 +132,40 @@ class ShareController extends Controller
         return $this->media->isImagePath($path)
             ? response()->file($path, $headers)
             : response()->download($path, basename($filename), $headers);
+    }
+
+    public function copyToSpace(Request $request, string $token): RedirectResponse
+    {
+        $share = $this->activeShare($token);
+        $content = $this->spaces->read($share->user, $share->path);
+        $recipient = $request->user();
+        $attachments = [];
+
+        try {
+            $destination = $this->spaces->synchronized($recipient, function () use ($recipient, $share, $content, &$attachments): string {
+                $destination = $this->spaces->copyDestination($recipient, $share->path);
+                $this->spaces->withNoteRollback($recipient, $destination, function () use ($recipient, $share, $content, $destination, &$attachments): void {
+                    $attachments = $this->media->copyReferenced($share->user, $recipient, $content);
+                    $content = $this->mediaUrls->forAuthenticatedUser($content, $attachments);
+                    $this->spaces->write($recipient, $destination, $content, snapshot: true);
+                    $this->history->record($recipient, $destination, $content);
+                });
+
+                return $destination;
+            });
+        } catch (\Throwable $exception) {
+            if (! $share->user->is($recipient)) {
+                $this->media->removeCopied($recipient, array_values($attachments));
+            }
+
+            report($exception);
+
+            return back()->withErrors(['copy' => $exception instanceof RuntimeException && ! $exception instanceof QueryException
+                ? $exception->getMessage() : __('ui.could_not_copy_shared_note')]);
+        }
+
+        return redirect()->route('notes.show', ['path' => $destination])
+            ->with('status', __('ui.shared_note_copied'));
     }
 
     private function generateToken(): string
@@ -169,26 +207,5 @@ class ShareController extends Controller
         }
 
         return $share;
-    }
-
-    private function withSharedMediaUrls(SharedNote $share, string $content): string
-    {
-        $baseUrl = preg_quote(rtrim(url('/'), '/'), '/');
-        $pattern = '/(!?\[[^\]]*\]\()\s*(?:'.$baseUrl.')?\/(?:app\/)?media\/([a-z0-9]{24}\.[a-z0-9]{1,10})(\))/i';
-
-        return preg_replace_callback($pattern, function (array $matches) use ($share): string {
-            return $matches[1].route('shares.media', [
-                'token' => $share->token,
-                'filename' => Str::lower($matches[2]),
-            ]).$matches[3];
-        }, $content) ?? $content;
-    }
-
-    private function mediaIsReferencedByNote(string $filename, string $content): bool
-    {
-        $baseUrl = preg_quote(rtrim(url('/'), '/'), '/');
-        $filename = preg_quote($filename, '/');
-
-        return preg_match('/!?\[[^\]]*\]\(\s*(?:'.$baseUrl.')?\/(?:app\/)?media\/'.$filename.'\)/i', $content) === 1;
     }
 }

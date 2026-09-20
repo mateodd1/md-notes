@@ -19,12 +19,12 @@ class NoteMedia
 
     private const FILENAME_PATTERN = '/^[a-z0-9]{24}\.[a-z0-9]{1,10}$/';
 
+    public const PENDING_UPLOAD_SECONDS = 86400;
+
     public function __construct(
         private readonly NoteSpace $spaces,
         private readonly StorageQuota $quota,
-    )
-    {
-    }
+    ) {}
 
     public function store(User $user, UploadedFile $file): string
     {
@@ -36,8 +36,10 @@ class NoteMedia
         $filename = Str::lower(Str::random(24)).'.'.$extension;
 
         try {
+            $this->markPending($directory, $filename);
             $file->move($directory, $filename);
         } catch (\Throwable $exception) {
+            $this->removeCopied($user, [$filename]);
             throw new RuntimeException(__('ui.cannot_save_attachment'), previous: $exception);
         }
 
@@ -103,6 +105,13 @@ class NoteMedia
             }
 
             if (isset($referenced[$filename])) {
+                $this->clearPending($directory, $filename);
+
+                continue;
+            }
+
+            $pending = $directory.'/.pending-'.$filename;
+            if (is_file($pending) && (int) filemtime($pending) > now()->timestamp - self::PENDING_UPLOAD_SECONDS) {
                 continue;
             }
 
@@ -111,9 +120,100 @@ class NoteMedia
             }
 
             $removed++;
+            $this->clearPending($directory, $filename);
         }
 
         return $removed;
+    }
+
+    /**
+     * Copies attachments referenced by a note to another user's isolated
+     * media directory. The returned map has the original filename as its key
+     * and the recipient's filename as its value.
+     *
+     * @return array<string, string>
+     */
+    public function copyReferenced(User $source, User $recipient, string $content): array
+    {
+        $filenames = array_unique($this->filenamesIn($content));
+        if ($filenames === []) {
+            return [];
+        }
+
+        if ($source->is($recipient)) {
+            return array_combine($filenames, $filenames) ?: [];
+        }
+
+        $sourceDirectory = $this->directory($source);
+        $recipientDirectory = $this->directory($recipient);
+        $files = [];
+        $bytes = 0;
+
+        foreach ($filenames as $filename) {
+            $sourcePath = $sourceDirectory.'/'.$filename;
+            if (! is_file($sourcePath) || is_link($sourcePath)) {
+                continue;
+            }
+
+            $recipientFilename = $this->uniqueFilename($recipientDirectory, $filename);
+            $files[$filename] = [
+                'source' => $sourcePath,
+                'destination' => $recipientDirectory.'/'.$recipientFilename,
+                'filename' => $recipientFilename,
+            ];
+            $bytes += (int) filesize($sourcePath);
+        }
+
+        $this->quota->ensureCanAdd($recipient, $this->spaces->root($recipient), $bytes);
+        $copied = [];
+
+        try {
+            foreach ($files as $filename => $file) {
+                $copied[$filename] = $file['filename'];
+                $this->markPending($recipientDirectory, $file['filename']);
+                if (! copy($file['source'], $file['destination'])) {
+                    throw new RuntimeException(__('ui.could_not_copy_shared_note'));
+                }
+            }
+        } catch (\Throwable $exception) {
+            $this->removeCopied($recipient, array_values($copied));
+
+            throw $exception instanceof RuntimeException
+                ? $exception
+                : new RuntimeException(__('ui.could_not_copy_shared_note'), previous: $exception);
+        }
+
+        return $copied;
+    }
+
+    /** @param array<int, string> $filenames */
+    public function removeCopied(User $user, array $filenames): void
+    {
+        $directory = $this->directory($user);
+
+        foreach (array_unique($filenames) as $filename) {
+            if (preg_match(self::FILENAME_PATTERN, $filename)) {
+                if (is_file($directory.'/'.$filename)) {
+                    unlink($directory.'/'.$filename);
+                }
+                $this->clearPending($directory, $filename);
+            }
+        }
+    }
+
+    private function markPending(string $directory, string $filename): void
+    {
+        if (! touch($directory.'/.pending-'.$filename, now()->timestamp)) {
+            throw new RuntimeException(__('ui.cannot_save_attachment'));
+        }
+    }
+
+    private function clearPending(string $directory, string $filename): void
+    {
+        $marker = $directory.'/.pending-'.$filename;
+        if (is_file($marker)) {
+            unlink($marker);
+        }
     }
 
     /** @return array<string, true> */
@@ -161,6 +261,17 @@ class NoteMedia
         }
 
         return $directory;
+    }
+
+    private function uniqueFilename(string $directory, string $sourceFilename): string
+    {
+        $extension = Str::afterLast($sourceFilename, '.');
+
+        do {
+            $filename = Str::lower(Str::random(24)).'.'.$extension;
+        } while (file_exists($directory.'/'.$filename));
+
+        return $filename;
     }
 
     /** @return array<int, string> */

@@ -18,6 +18,10 @@ md-notes es un espacio privado para guardar apuntes, ideas y documentación en a
 - Puedes **anclar** archivos y carpetas. Aparecerán con una chincheta en el panel lateral.
 - Haz clic derecho sobre un archivo para renombrarlo, descargarlo, compartirlo, consultar versiones o abrir sus propiedades.
 
+## Buscar notas
+
+Puedes buscar por título o contenido con **Buscar notas** en el panel lateral o con **Ctrl+K** (**⌘K** en Mac). Escribe al menos dos caracteres y selecciona un resultado para abrirlo. La búsqueda no incluye la papelera ni versiones anteriores.
+
 ## Escribir en Markdown
 
 La vista de lectura interpreta el formato Markdown. El editor incluye accesos para títulos, negrita, cursiva, listas, citas, enlaces y código.

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\NoteVersion;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -26,9 +27,7 @@ class NoteSpace
 
     private const TRASH_METADATA_FILE = 'metadata.json';
 
-    public function __construct(private readonly ?string $basePath = null)
-    {
-    }
+    public function __construct(private readonly ?string $basePath = null) {}
 
     public function root(User $user): string
     {
@@ -60,6 +59,41 @@ class NoteSpace
         return (string) file_get_contents($file);
     }
 
+    /** @return array{results: array<int, array{path: string, title: string, excerpt: string}>, truncated: bool} */
+    public function search(User $user, string $query): array
+    {
+        $root = $this->root($user);
+        $filter = new \RecursiveCallbackFilterIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+            static fn (\SplFileInfo $file): bool => ! $file->isLink() && ! str_starts_with($file->getFilename(), '.'),
+        );
+        $results = [];
+        foreach (new \RecursiveIteratorIterator($filter) as $file) {
+            if (! $file->isFile() || strtolower($file->getExtension()) !== 'md') {
+                continue;
+            }
+            $path = substr($file->getPathname(), strlen($root) + 1);
+            $content = file_get_contents($file->getPathname());
+            if ($content === false) {
+                continue;
+            }
+            $position = mb_stripos($content, $query);
+            if (mb_stripos($path, $query) === false && $position === false) {
+                continue;
+            }
+            if (count($results) === 50) {
+                return ['results' => $results, 'truncated' => true];
+            }
+            $results[] = [
+                'path' => $path,
+                'title' => pathinfo($path, PATHINFO_FILENAME),
+                'excerpt' => preg_replace('/\s+/u', ' ', mb_substr($content, max(0, (int) $position - 50), 180)) ?? '',
+            ];
+        }
+
+        return ['results' => $results, 'truncated' => false];
+    }
+
     /** @return array{created_at: string, markdown_bytes: int} */
     public function noteProperties(User $user, string $path): array
     {
@@ -87,7 +121,7 @@ class NoteSpace
 
         $this->quota()->ensureCanSaveNote($user, $this->root($user), $file, $path, $content, $snapshot);
 
-        file_put_contents($file, $content, LOCK_EX);
+        $this->replaceContents($file, $content);
     }
 
     public function writeFromApi(User $user, string $path, string $content, bool $snapshot = true): bool
@@ -126,11 +160,70 @@ class NoteSpace
 
         $created = ! is_file($file);
         $this->quota()->ensureCanSaveNote($user, $this->root($user), $file, $path, $content, $snapshot);
-        if (file_put_contents($file, $content, LOCK_EX) === false) {
+        $this->replaceContents($file, $content);
+
+        return $created;
+    }
+
+    /** Roll back both the note and its database history if a multi-step save fails. */
+    public function withNoteRollback(User $user, string $path, \Closure $operation): mixed
+    {
+        $file = $this->filePath($user, $path, mustExist: false);
+        $original = is_file($file) ? file_get_contents($file) : null;
+        if ($original === false) {
             throw new RuntimeException(__('ui.could_not_save'));
         }
 
-        return $created;
+        try {
+            return DB::transaction($operation);
+        } catch (\Throwable $exception) {
+            if ($original === null) {
+                if (is_file($file) && ! unlink($file)) {
+                    throw new RuntimeException(__('ui.could_not_save'), previous: $exception);
+                }
+            } elseif (file_get_contents($file) !== $original) {
+                $this->replaceContents($file, $original);
+            }
+            throw $exception;
+        }
+    }
+
+    /** Serialize multi-step operations for this account, including copy-name allocation. */
+    public function synchronized(User $user, \Closure $operation): mixed
+    {
+        $lock = fopen($this->root($user).'/.md-notes-write.lock', 'c');
+        if ($lock === false) {
+            throw new RuntimeException(__('ui.could_not_save'));
+        }
+        try {
+            if (! flock($lock, LOCK_EX)) {
+                throw new RuntimeException(__('ui.could_not_save'));
+            }
+
+            return $operation();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    private function replaceContents(string $file, string $content): void
+    {
+        $temporary = tempnam(dirname($file), '.md-notes-save-');
+        if ($temporary === false) {
+            throw new RuntimeException(__('ui.could_not_save'));
+        }
+        try {
+            if (file_put_contents($temporary, $content, LOCK_EX) !== strlen($content)
+                || ! chmod($temporary, 0660) || ! rename($temporary, $file)) {
+                throw new RuntimeException(__('ui.could_not_save'));
+            }
+            clearstatcache(true, $file);
+        } finally {
+            if (is_file($temporary)) {
+                unlink($temporary);
+            }
+        }
     }
 
     public function deleteSpace(User $user): void
@@ -169,6 +262,24 @@ class NoteSpace
         file_put_contents($file, $content, LOCK_EX);
 
         return $relativePath;
+    }
+
+    public function copyDestination(User $user, string $sourcePath): string
+    {
+        $sourcePath = $this->normalize($sourcePath);
+        $name = Str::beforeLast(basename($sourcePath), '.');
+        $suffix = ' (copy)';
+        $index = 1;
+
+        do {
+            $number = $index === 1 ? '' : ' '.$index;
+            $available = 79 - mb_strlen($suffix.$number);
+            $candidate = mb_substr($name, 0, max(1, $available)).$suffix.$number.'.md';
+            $file = $this->filePath($user, $candidate, mustExist: false);
+            $index++;
+        } while (file_exists($file));
+
+        return $candidate;
     }
 
     /** @return array{id: string, original_path: string, history_path: string, type: string, deleted_at: string} */
@@ -776,6 +887,7 @@ class NoteSpace
         foreach ($order as $parent => $paths) {
             if ($parent === $path || Str::startsWith($parent, $path.'/')) {
                 unset($order[$parent]);
+
                 continue;
             }
 
@@ -1116,6 +1228,7 @@ class NoteSpace
         foreach ($order as $parent => $paths) {
             if ($parent === $path || Str::startsWith($parent, $path.'/')) {
                 unset($order[$parent]);
+
                 continue;
             }
 

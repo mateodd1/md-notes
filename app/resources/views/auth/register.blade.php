@@ -12,7 +12,7 @@
             <label for="name">{{ __('ui.name') }}</label><input id="name" name="name" value="{{ old('name') }}" minlength="3" maxlength="80" autocomplete="off" data-lpignore="true" data-1p-ignore="true" required autofocus>
             <label for="email">{{ __('ui.email') }}</label><input id="email" name="email" type="email" value="{{ old('email') }}" autocomplete="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true" required>
             <label for="password">{{ __('ui.password') }} <span style="font-weight:400;color:var(--muted)">({{ __('ui.minimum_8') }})</span></label><input id="password" name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required>
-            <label for="password_confirmation">{{ __('ui.repeat_new_password') }}</label><input id="password_confirmation" name="password_confirmation" type="password" minlength="8" maxlength="128" autocomplete="new-password" required>
+            <label for="password_confirmation">{{ __('ui.confirm_password') }}</label><input id="password_confirmation" name="password_confirmation" type="password" minlength="8" maxlength="128" autocomplete="new-password" required>
             <button class="button" type="submit">{{ __('ui.sign_up') }}</button>
         </form>
         <p class="form-foot">{{ __('ui.already_account') }} <a href="{{ route('login') }}">{{ __('ui.login') }}</a></p>

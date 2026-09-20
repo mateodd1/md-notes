@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\SharedNote;
 use App\Models\User;
-use App\Services\NoteSpace;
+use App\Services\MarkdownMediaUrls;
 use App\Services\NoteMedia;
+use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
 use App\Services\StorageQuota;
 use Illuminate\Http\JsonResponse;
@@ -22,10 +23,9 @@ class NotesController extends Controller
         private readonly NoteSpace $spaces,
         private readonly NoteVersionHistory $history,
         private readonly NoteMedia $media,
+        private readonly MarkdownMediaUrls $mediaUrls,
         private readonly StorageQuota $quota,
-    )
-    {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -35,6 +35,14 @@ class NotesController extends Controller
     public function quota(Request $request): JsonResponse
     {
         return response()->json($this->quota->summary($request->user()));
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $data = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
+
+        return response()->json($this->spaces->search($request->user(), trim($data['q'])))
+            ->header('Cache-Control', 'private, no-store');
     }
 
     public function show(Request $request, string $path): View
@@ -329,14 +337,24 @@ class NotesController extends Controller
         ]);
     }
 
-    public function showTrash(Request $request, string $id): View
+    public function showTrash(Request $request, string $id): View|JsonResponse
     {
         $item = $this->spaces->trashedNote($request->user(), $id);
+        $title = Str::beforeLast(basename($item['original_path']), '.');
+        $rendered = $this->renderMarkdown($item['content']);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'title' => $title,
+                'path' => $item['original_path'],
+                'rendered' => $rendered,
+            ])->header('Cache-Control', 'private, no-store');
+        }
 
         return view('trash.show', [
             'item' => $item,
-            'title' => Str::beforeLast(basename($item['original_path']), '.'),
-            'rendered' => $this->renderMarkdown($item['content']),
+            'title' => $title,
+            'rendered' => $rendered,
         ]);
     }
 
@@ -398,7 +416,7 @@ class NotesController extends Controller
 
     private function renderMarkdown(string $content): string
     {
-        return Str::markdown($content, [
+        return Str::markdown($this->mediaUrls->forAuthenticatedUser($content), [
             'html_input' => 'strip',
             'allow_unsafe_links' => false,
             'renderer' => ['soft_break' => "<br>\n"],

@@ -1,13 +1,14 @@
 <?php
 
+use App\Http\Middleware\ApiTokenAuthentication;
+use App\Http\Middleware\RedirectLegacyDomain;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
-use App\Http\Middleware\ApiTokenAuthentication;
-use App\Http\Middleware\RedirectLegacyDomain;
-use App\Http\Middleware\SetLocale;
-use App\Http\Middleware\SecurityHeaders;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,6 +27,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', SetLocale::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (ThrottleRequestsException $exception, Request $request) {
+            $seconds = (int) ($exception->getHeaders()['Retry-After'] ?? 60);
+            $locale = str_starts_with(strtolower($request->getPreferredLanguage() ?? 'en'), 'es') ? 'es' : 'en';
+            app()->setLocale($locale);
+            $message = __('ui.too_many_requests', ['seconds' => $seconds]);
+
+            return $request->expectsJson() || $request->is('api/*')
+                ? response()->json(['message' => $message], 429, $exception->getHeaders())
+                : response()->view('errors.429', ['message' => $message], 429, $exception->getHeaders());
+        });
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

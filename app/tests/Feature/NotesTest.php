@@ -2,10 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\NoteVersion;
+use App\Models\User;
 use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
+use App\Services\StorageQuota;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 use Mockery;
@@ -100,6 +101,7 @@ class NotesTest extends TestCase
             ->assertSee("Primera línea<br>\nSegunda línea", false)
             ->assertSee('<code>código</code>', false)
             ->assertSee('<details class="tree-folder"  open', false)
+            ->assertSee('data-context-trigger', false)
             ->assertSee('assets/md-notes-workspace.css', false);
     }
 
@@ -186,7 +188,7 @@ class NotesTest extends TestCase
             'content' => str_repeat('a', 10),
         ]);
 
-        $quota = $this->app->make(\App\Services\StorageQuota::class)->summary($user, $this->mediaPath.'/'.$user->id);
+        $quota = $this->app->make(StorageQuota::class)->summary($user, $this->mediaPath.'/'.$user->id);
 
         $this->assertSame(10, $quota['used']);
         $this->assertSame(0, $quota['available']);
@@ -303,6 +305,74 @@ class NotesTest extends TestCase
         $this->assertDatabaseHas('note_versions', ['user_id' => $user->id, 'path' => $path]);
     }
 
+    public function test_trash_preview_returns_sanitized_markdown_and_preserves_its_images(): void
+    {
+        $user = User::factory()->create();
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+        $spaces = $this->app->make(NoteSpace::class);
+        $filename = 'abcdefghijklmnopqrstuvwx.png';
+        $mediaDirectory = $spaces->root($user).'/.md-notes-media';
+        File::ensureDirectoryExists($mediaDirectory);
+        File::put($mediaDirectory.'/'.$filename, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLJDQAAAABJRU5ErkJggg=='));
+        $path = $spaces->createNote($user, '', 'Vista previa');
+        $content = "# Apuntes\n\nPrimera línea\nSegunda línea\n\n**Importante**\n\n![Horario](/app/media/{$filename})\n\n<script>alert(1)</script>\n\n[Enlace](javascript:alert(1))";
+        $spaces->write($user, $path, $content);
+        $entry = $spaces->trash($user, $path);
+
+        $this->actingAs($user)->get(route('trash.index'))->assertOk()
+            ->assertSee('data-trash-preview-url="'.route('trash.show', ['id' => $entry['id']]).'"', false)
+            ->assertSee('<dialog id="trash-preview"', false);
+
+        $response = $this->getJson(route('trash.show', ['id' => $entry['id']]))
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertJsonPath('title', 'Vista previa')
+            ->assertJsonPath('path', $path)
+            ->assertJsonMissingPath('content');
+        $rendered = $response->json('rendered');
+        $this->assertStringContainsString('<h1>Apuntes</h1>', $rendered);
+        $this->assertStringContainsString("Primera línea<br>\nSegunda línea", $rendered);
+        $this->assertStringContainsString('<strong>Importante</strong>', $rendered);
+        $this->assertStringContainsString('src="'.route('media.show', ['filename' => $filename]).'"', $rendered);
+        $this->assertStringNotContainsString('<script', $rendered);
+        $this->assertStringNotContainsString('javascript:', $rendered);
+        $this->get(route('media.show', ['filename' => $filename]))->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->assertSame($content, $spaces->trashedNote($user, $entry['id'])['content']);
+        $this->assertFileDoesNotExist($spaces->root($user).'/'.$path);
+    }
+
+    public function test_trash_preview_is_only_available_to_the_owner(): void
+    {
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+        $spaces = $this->app->make(NoteSpace::class);
+        $path = $spaces->createNote($owner, '', 'Privada');
+        $entry = $spaces->trash($owner, $path);
+        $url = route('trash.show', ['id' => $entry['id']]);
+
+        $this->getJson($url)->assertUnauthorized();
+        $this->actingAs($other)->getJson($url)->assertNotFound();
+        $this->get($url)->assertNotFound();
+        $this->actingAs($owner)->getJson($url)->assertOk()->assertJsonPath('title', 'Privada');
+    }
+
+    public function test_trash_preview_rejects_folders_and_notes_that_are_no_longer_in_the_trash(): void
+    {
+        $user = User::factory()->create();
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+        $spaces = $this->app->make(NoteSpace::class);
+        $spaces->createFolder($user, '', 'Carpeta');
+        $folder = $spaces->trash($user, 'Carpeta');
+        $this->actingAs($user)->getJson(route('trash.show', ['id' => $folder['id']]))->assertNotFound();
+        $this->get(route('trash.index'))->assertOk()->assertDontSee('data-trash-preview-url=', false);
+
+        $path = $spaces->createNote($user, '', 'Restaurada');
+        $entry = $spaces->trash($user, $path);
+        $spaces->restoreTrash($user, $entry['id']);
+        $this->getJson(route('trash.show', ['id' => $entry['id']]))->assertNotFound();
+    }
+
     public function test_an_image_from_the_clipboard_can_be_uploaded_to_the_users_private_space(): void
     {
         $user = User::query()->create([
@@ -340,5 +410,25 @@ class NotesTest extends TestCase
             ->get('/media/'.$filename)
             ->assertOk()
             ->assertHeader('X-Content-Type-Options', 'nosniff');
+    }
+
+    public function test_the_reader_rewrites_legacy_attachment_urls_to_the_canonical_private_route(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Mateo',
+            'email' => 'mateo@example.test',
+            'password' => 'una-clave-segura',
+            'is_admin' => true,
+        ]);
+        $filename = 'abcdefghijklmnopqrstuvwx.png';
+        $spaces = Mockery::mock(NoteSpace::class);
+        $spaces->shouldReceive('read')->once()->andReturn("![](https://md.mateo.ovh/media/{$filename})");
+        $spaces->shouldReceive('tree')->once()->andReturn([]);
+        $this->app->instance(NoteSpace::class, $spaces);
+
+        $this->actingAs($user)
+            ->get(route('notes.show', ['path' => 'Horario.md']))
+            ->assertOk()
+            ->assertSee(route('media.show', ['filename' => $filename]), false);
     }
 }

@@ -1,13 +1,14 @@
 @extends('layouts.app')
 
 @push('head')
-<link rel="stylesheet" href="{{ asset('assets/md-notes-workspace.css') }}">
+<link rel="stylesheet" href="{{ asset('assets/md-notes-workspace.css') }}?v={{ filemtime(public_path('assets/md-notes-workspace.css')) }}">
 @endpush
 
 @section('body')
 <div class="workspace">
     <aside id="sidebar" class="sidebar">
         <header class="side-head"><a class="side-brand" href="{{ route('notes.index') }}">✦ md-notes</a><div class="side-actions"><a href="#new-folder" title="{{ __('ui.new_folder') }}"><button type="button">＋</button></a><a href="#new-note" title="{{ __('ui.new_note') }}"><button type="button">▤</button></a></div></header>
+        <button id="open-note-search" class="note-search-button" type="button">⌕ {{ __('ui.search_notes') }} <kbd>Ctrl K</kbd></button>
         <div id="root-drop-target" class="root-drop-target" data-drop-path="" aria-label="{{ __('ui.root') }}">⌂ {{ __('ui.root') }}</div>
         <nav id="tree" class="tree" data-drop-path="" aria-label="{{ __('ui.notes') }}">@include('notes._tree', ['nodes' => $tree, 'path' => $path])</nav>
         <section id="storage-meter" class="storage-meter" aria-label="{{ __('ui.storage') }}"><div class="storage-meter-head"><span>{{ __('ui.storage') }}</span><strong>{{ $quota['used_human'] }} / {{ $quota['limit_human'] }}</strong></div><div class="storage-meter-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $quota['percentage'] }}"><span style="width:{{ $quota['percentage'] }}%"></span></div></section>
@@ -34,6 +35,7 @@
 </div>
 
 @if (session('status')) <div id="toast" class="toast" role="status">{{ session('status') }}<button type="button" aria-label="{{ __('ui.close') }}">×</button></div> @endif
+@include('notes._search')
 <div id="new-folder" class="modal"><form class="modal-card" method="post" action="{{ route('folders.store') }}">@csrf<h2>{{ __('ui.new_folder') }}</h2><p>{{ __('ui.folder_example') }}</p><label for="folder-name">{{ __('ui.folder_name') }}</label><input id="folder-name" name="name" required maxlength="80"><label for="folder-parent">{{ __('ui.inside') }}</label>@include('notes._parent-picker', ['nodes' => $tree, 'fieldId' => 'folder-parent', 'pickerId' => 'folder-parent-picker'])<div class="modal-footer"><a href="#">{{ __('ui.cancel') }}</a><button class="button">{{ __('ui.create_folder') }}</button></div></form></div>
 <div id="new-note" class="modal"><form class="modal-card" method="post" action="{{ route('notes.store') }}">@csrf<h2>{{ __('ui.new_note') }}</h2><p>{{ __('ui.note_creation_help') }}</p><label for="note-name">{{ __('ui.note_title') }}</label><input id="note-name" name="name" required maxlength="80"><label for="note-parent">{{ __('ui.inside') }}</label>@include('notes._parent-picker', ['nodes' => $tree, 'fieldId' => 'note-parent', 'pickerId' => 'note-parent-picker'])<div class="modal-footer"><a href="#">{{ __('ui.cancel') }}</a><button class="button">{{ __('ui.create_note') }}</button></div></form></div>
 @if ($path)<div id="confirm-delete" class="modal"><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-title"><h2 id="delete-title">{{ __('ui.delete_note_question') }}</h2><p>{{ __('ui.delete_note_help', ['title' => $title]) }}</p><div class="modal-footer"><a href="#">{{ __('ui.cancel') }}</a><form action="{{ route('notes.destroy', ['path' => $path]) }}" method="post">@csrf @method('DELETE')<button class="button danger" type="submit">{{ __('ui.delete_note') }}</button></form></div></section></div>@endif

@@ -9,6 +9,7 @@ readonly SNAPSHOTS_DIR="${BACKUP_ROOT}/snapshots"
 readonly NOTE_SPACES_DIR=/root/docker/md-notes/data
 readonly MD_NOTES_DIR=/root/docker/md-notes
 readonly LOCK_FILE=/run/lock/md-notes-local-backup.lock
+readonly SNAPSHOTS_LOCK=/run/lock/md-notes-snapshots.lock
 readonly RETENTION_DAYS=30
 readonly MIN_FREE_KIB=$((5 * 1024 * 1024))
 
@@ -22,9 +23,18 @@ fi
 
 exec 9>"${LOCK_FILE}"
 flock -n 9 || exit 0
+exec 8>"${SNAPSHOTS_LOCK}"
+flock -s 8
 
 readonly BUILD_DIR="$(mktemp -d "${BACKUP_ROOT}/.build.XXXXXX")"
-trap 'rm -rf "${BUILD_DIR}"' EXIT
+staging_dir=''
+cleanup() {
+  rm -rf -- "${BUILD_DIR}"
+  if [[ "${staging_dir}" == "${SNAPSHOTS_DIR}/.pending."* && -d "${staging_dir}" ]]; then
+    rm -rf -- "${staging_dir}"
+  fi
+}
+trap cleanup EXIT
 
 mkdir -p "${BUILD_DIR}/md-notes/spaces" "${BUILD_DIR}/md-notes/config" "${BUILD_DIR}/md-notes/application"
 rsync -a --delete --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= "${NOTE_SPACES_DIR}/" "${BUILD_DIR}/md-notes/spaces/"
@@ -43,18 +53,31 @@ install -m 644 "${MD_NOTES_DIR}/Dockerfile" "${BUILD_DIR}/md-notes/config/Docker
 rsync -a --delete "${MD_NOTES_DIR}/docker/" "${BUILD_DIR}/md-notes/config/docker/"
 
 changes="$(rsync -r --perms --delete --checksum --omit-dir-times --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= --itemize-changes --out-format='%i %n' "${BUILD_DIR}/" "${CURRENT_DIR}/")"
-if [[ -n "${changes}" ]]; then
-  snapshot_id="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+previous_snapshot="$(find "${SNAPSHOTS_DIR}" -mindepth 1 -maxdepth 1 -type d -name '20*' -printf '%f\n' | sort | tail -n 1)"
+snapshot_changes='initial'
+if [[ -n "${previous_snapshot}" ]]; then
+  snapshot_changes="$(rsync -rn --delete --checksum --itemize-changes --out-format='%i %n' "${CURRENT_DIR}/" "${SNAPSHOTS_DIR}/${previous_snapshot}/")"
+fi
+if [[ -n "${changes}" || -n "${snapshot_changes}" ]]; then
+  snapshot_id="$(date -u +%Y-%m-%dT%H-%M-%S-%NZ)"
   snapshot_dir="${SNAPSHOTS_DIR}/${snapshot_id}"
-  previous_snapshot="$(find "${SNAPSHOTS_DIR}" -mindepth 1 -maxdepth 1 -type d -name '20*' -printf '%f\n' | sort | tail -n 1)"
+  staging_dir="$(mktemp -d "${SNAPSHOTS_DIR}/.pending.XXXXXX")"
   if [[ -n "${previous_snapshot}" ]]; then
-    rsync -a --delete --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= --link-dest="${SNAPSHOTS_DIR}/${previous_snapshot}" "${CURRENT_DIR}/" "${snapshot_dir}/"
+    rsync -a --delete --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= --link-dest="${SNAPSHOTS_DIR}/${previous_snapshot}" "${CURRENT_DIR}/" "${staging_dir}/"
   else
-    rsync -a --delete --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= "${CURRENT_DIR}/" "${snapshot_dir}/"
+    rsync -a --delete --chmod=Du=rwx,Dgo=,Fu=rw,Fgo= "${CURRENT_DIR}/" "${staging_dir}/"
   fi
+  # Publish only after every file is ready; hidden staging directories are not uploaded.
+  touch "${staging_dir}"
+  mv -T "${staging_dir}" "${snapshot_dir}"
   printf 'Created local snapshot %s\n' "${snapshot_id}"
 else
   printf 'Local backup is already current; no snapshot created\n'
 fi
 
-find "${SNAPSHOTS_DIR}" -mindepth 1 -maxdepth 1 -type d -name '20*' -mtime +"${RETENTION_DAYS}" -exec rm -rf -- {} +
+# Skip pruning while any upload is reading a snapshot.
+flock -u 8
+if flock -n -x 8; then
+  newest_snapshot="$(find "${SNAPSHOTS_DIR}" -mindepth 1 -maxdepth 1 -type d -name '20*' -printf '%f\n' | sort | tail -n 1)"
+  find "${SNAPSHOTS_DIR}" -mindepth 1 -maxdepth 1 -type d -name '20*' ! -name "${newest_snapshot}" -mtime +"${RETENTION_DAYS}" -exec rm -rf -- {} +
+fi

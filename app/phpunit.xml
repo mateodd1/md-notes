@@ -18,7 +18,9 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="MD_NOTES_WORKSPACE_URL" value="" force="true"/>
+        <env name="VIEW_COMPILED_PATH" value="/tmp/md-notes-testing-views"/>
         <env name="APP_CONFIG_CACHE" value="/tmp/md-notes-testing-config.php"/>
         <env name="APP_ROUTES_CACHE" value="/tmp/md-notes-testing-routes.php"/>
         <env name="APP_EVENTS_CACHE" value="/tmp/md-notes-testing-events.php"/>
