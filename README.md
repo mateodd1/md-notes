@@ -5,7 +5,7 @@ Un espacio de apuntes privado, rápido y centrado en archivos Markdown reales.
 **md-notes** combina una interfaz de escritura cómoda con la libertad de conservar las notas como archivos `.md`, organizados en carpetas y aislados por cuenta. Está pensado para clase, proyectos personales y cualquier colección de notas que quieras conservar bajo tu control.
 
 <p align="center">
-  <a href="https://mdnotes.net">Conocer md-notes</a> · <a href="https://app.mdnotes.net">Abrir mis notas</a> · <a href="https://mdnotes.net/documentation.md">Documentación</a> · <a href="https://github.com/mateodd1/md-notes">Código fuente</a>
+  <a href="https://mdnotes.net">md-notes</a> · <a href="https://mdnotes.net/documentation.md">Documentación</a>
 </p>
 
 > La presentación y la documentación están en `mdnotes.net`; el espacio de trabajo está en `app.mdnotes.net`. La API se mantiene en `mdnotes.net/api`.
