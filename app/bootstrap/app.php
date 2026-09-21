@@ -4,6 +4,8 @@ use App\Http\Middleware\ApiTokenAuthentication;
 use App\Http\Middleware\RedirectLegacyDomain;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\TrustProxies;
+use App\Http\Middleware\ValidateSessionVersion;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,13 +20,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->trustProxies(at: '*');
+        $middleware->replace(Illuminate\Http\Middleware\TrustProxies::class, TrustProxies::class);
         $middleware->prepend(RedirectLegacyDomain::class);
         $middleware->append(SecurityHeaders::class);
         $middleware->alias([
             'api.token' => ApiTokenAuthentication::class,
         ]);
         $middleware->appendToGroup('web', SetLocale::class);
+        $middleware->appendToGroup('web', ValidateSessionVersion::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ThrottleRequestsException $exception, Request $request) {

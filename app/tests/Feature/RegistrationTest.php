@@ -6,7 +6,6 @@ use App\Mail\WelcomeToMdNotes;
 use App\Models\User;
 use App\Services\NoteSpace;
 use Illuminate\Support\Facades\Mail;
-use Mockery;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
@@ -18,16 +17,12 @@ class RegistrationTest extends TestCase
         $this->artisan('migrate:fresh --force')->assertSuccessful();
     }
 
-    public function test_first_registered_account_gets_the_legacy_import(): void
+    public function test_first_registered_account_starts_with_only_its_welcome_note(): void
     {
         Mail::fake();
-        $spaces = Mockery::mock(NoteSpace::class);
-        $spaces->shouldReceive('root')->once()->andReturn('/tmp/notes');
-        $spaces->shouldReceive('importLegacySpace')->once();
-        $spaces->shouldReceive('tree')->once()->andReturn([['path' => 'Importada.md']]);
-        $this->app->instance(NoteSpace::class, $spaces);
+        $spaces = app(NoteSpace::class);
 
-        $response = $this->withSession(['_token' => 'test-token'])->post(route('register.store'), [
+        $response = $this->withHeader('Accept-Language', 'en')->withSession(['_token' => 'test-token'])->post(route('register.store'), [
             '_token' => 'test-token',
             'name' => 'Mateo',
             'email' => 'mateo@example.test',
@@ -35,10 +30,41 @@ class RegistrationTest extends TestCase
             'password_confirmation' => 'una-clave-segura',
         ]);
 
-        $response->assertRedirect(route('notes.index'));
-        $this->assertAuthenticated();
-        $this->assertDatabaseHas('users', ['email' => 'mateo@example.test']);
-        Mail::assertSent(WelcomeToMdNotes::class, fn (WelcomeToMdNotes $mail): bool => $mail->user->email === 'mateo@example.test');
+        $user = User::query()->where('email', 'mateo@example.test')->firstOrFail();
+        $response->assertRedirect(route('notes.show', ['path' => 'Welcome.md']))
+            ->assertSessionHas('status', __('ui.account_created'));
+        $this->assertAuthenticatedAs($user);
+        $this->assertSame(['Welcome.md'], array_column($spaces->tree($user), 'path'));
+        $content = $spaces->read($user, 'Welcome.md');
+        $this->assertStringContainsString('# Welcome to md-notes', $content);
+        $this->assertDatabaseHas('note_versions', ['user_id' => $user->id, 'path' => 'Welcome.md', 'content' => $content]);
+        Mail::assertSent(WelcomeToMdNotes::class, fn (WelcomeToMdNotes $mail): bool => $mail->user->is($user));
+    }
+
+    public function test_a_new_account_gets_a_localized_welcome_note_without_other_users_files(): void
+    {
+        Mail::fake();
+        $owner = User::factory()->create();
+        $spaces = app(NoteSpace::class);
+        $spaces->createNote($owner, '', 'Private');
+        $spaces->write($owner, 'Private.md', '# Private notes');
+
+        $response = $this->withHeader('Accept-Language', 'es')->withSession(['_token' => 'test-token'])->post(route('register.store'), [
+            '_token' => 'test-token',
+            'name' => 'Nuevo usuario',
+            'email' => 'new@example.test',
+            'password' => 'una-clave-segura',
+            'password_confirmation' => 'una-clave-segura',
+        ]);
+
+        $user = User::query()->where('email', 'new@example.test')->firstOrFail();
+        $response->assertRedirect(route('notes.show', ['path' => 'Bienvenida.md']));
+        $this->assertAuthenticatedAs($user);
+        $this->assertSame(['Bienvenida.md'], array_column($spaces->tree($user), 'path'));
+        $this->assertStringContainsString('# Bienvenido a md-notes', $spaces->read($user, 'Bienvenida.md'));
+        $this->assertSame('# Private notes', $spaces->read($owner, 'Private.md'));
+        $this->get(route('notes.show', ['path' => 'Private.md']))->assertNotFound();
+        Mail::assertSent(WelcomeToMdNotes::class, fn (WelcomeToMdNotes $mail): bool => $mail->user->is($user));
     }
 
     public function test_demo_credentials_can_sign_in_without_registering(): void

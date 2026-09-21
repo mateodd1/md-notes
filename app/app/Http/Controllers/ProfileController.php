@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\AccountExportReadyMail;
 use App\Models\ApiToken;
-use App\Services\ApiTokens;
 use App\Services\AccountExports;
+use App\Services\ApiTokens;
 use App\Services\NoteSpace;
+use App\Services\PasswordSecurity;
 use App\Services\ProfileVerificationCodes;
 use App\Services\StorageQuota;
 use Illuminate\Http\RedirectResponse;
@@ -13,7 +15,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\AccountExportReadyMail;
 use Illuminate\View\View;
 use RuntimeException;
 use Throwable;
@@ -26,9 +27,7 @@ class ProfileController extends Controller
         private readonly ApiTokens $apiTokens,
         private readonly StorageQuota $quota,
         private readonly AccountExports $exports,
-    )
-    {
-    }
+    ) {}
 
     public function edit(Request $request): View|RedirectResponse
     {
@@ -88,7 +87,7 @@ class ProfileController extends Controller
         return back()->with('status', __('ui.api_token_revoked'));
     }
 
-    public function updatePassword(Request $request): RedirectResponse
+    public function updatePassword(Request $request, PasswordSecurity $passwordSecurity): RedirectResponse
     {
         if ($response = $this->demoResponse($request)) {
             return $response;
@@ -105,7 +104,9 @@ class ProfileController extends Controller
             ]);
         }
 
-        $request->user()->forceFill(['password' => Hash::make($data['new_password'])])->save();
+        $passwordSecurity->change($request->user(), $data['new_password']);
+        $request->session()->put('auth_version', $request->user()->auth_version);
+        $request->session()->regenerate(true);
 
         $request->session()->forget('password_code_requested');
 

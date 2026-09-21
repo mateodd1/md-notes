@@ -2,12 +2,11 @@
 <html lang="{{ app()->getLocale() }}">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0e0f12" media="(prefers-color-scheme: dark)">
-    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
-    <link rel="alternate icon" href="{{ asset('favicon.ico') }}">
+    @include('partials.favicons')
     <title>{{ $title ?? 'md-notes' }}</title>
     <script>
         try { const theme = localStorage.getItem('md-notes-theme') || 'system'; if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (_) { if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark'); }
@@ -22,6 +21,8 @@
         .modal:target { animation:md-notes-modal-backdrop-in .18s ease-out both; }.modal:target .modal-card { animation:md-notes-modal-card-in .22s cubic-bezier(.2,.8,.2,1) both; }.modal.is-closing { display:grid; animation:md-notes-modal-backdrop-out .16s ease-in both; }.modal.is-closing .modal-card { animation:md-notes-modal-card-out .16s ease-in both; }@keyframes md-notes-modal-backdrop-in { from { opacity:0; } to { opacity:1; } }@keyframes md-notes-modal-card-in { from { opacity:0; transform:translateY(12px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }@keyframes md-notes-modal-backdrop-out { from { opacity:1; } to { opacity:0; } }@keyframes md-notes-modal-card-out { from { opacity:1; transform:translateY(0) scale(1); } to { opacity:0; transform:translateY(8px) scale(.985); } }@media (prefers-reduced-motion:reduce) { .modal:target,.modal:target .modal-card,.modal.is-closing,.modal.is-closing .modal-card { animation:none; } }
     </style>
     @stack('head')
+    <link rel="stylesheet" href="{{ asset('assets/md-notes-responsive.css') }}?v={{ filemtime(public_path('assets/md-notes-responsive.css')) }}">
+    <script defer src="{{ asset('assets/md-notes-viewport.js') }}?v={{ filemtime(public_path('assets/md-notes-viewport.js')) }}"></script>
 </head>
 <body>
     @yield('body')

@@ -129,7 +129,7 @@ class AccountExports
                 ->get(['path', 'token', 'expires_at', 'created_at'])
                 ->map(fn (SharedNote $share): array => [
                     'path' => $share->path,
-                    'url' => route('shares.show', ['token' => $share->token]),
+                    'url' => app(ShareTokens::class)->publicUrl($share->token),
                     'expires_at' => $share->expires_at?->toIso8601String(),
                     'created_at' => $share->created_at?->toIso8601String(),
                 ])->all()));

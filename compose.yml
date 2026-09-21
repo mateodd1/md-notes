@@ -14,7 +14,6 @@ services:
     volumes:
       - ./app:/var/www/html
       - ./data:/var/www/html/storage/app/private/spaces
-      - ../silverbullet/space:/legacy-space:ro
     networks:
       - nginx-pm_default
 

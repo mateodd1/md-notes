@@ -33,6 +33,11 @@ class RedirectLegacyDomain
 
         $uri = $request->getRequestUri();
         $path = $request->getPathInfo();
+
+        if ($path === '/share' || str_starts_with($path, '/share/')) {
+            return $legacy ? redirect()->away($canonicalUrl.$uri, 308) : $next($request);
+        }
+
         if (($host === $publicHost || $legacy) && ($path === '/app' || str_starts_with($path, '/app/'))) {
             $uri = substr($uri, 4);
             if ($uri === '' || str_starts_with($uri, '?')) {
@@ -47,7 +52,7 @@ class RedirectLegacyDomain
         }
 
         // The public site keeps its landing, documentation and static assets.
-        $workspacePath = preg_match('#^/(?:login|signup|logout|forgot-password|reset-password|share|media|account-export)(?:/|$)#', $path)
+        $workspacePath = preg_match('#^/(?:login|signup|logout|forgot-password|reset-password|media|account-export)(?:/|$)#', $path)
             || str_ends_with(strtolower($path), '.md');
         if (($host === $publicHost || $legacy) && $workspacePath) {
             return redirect()->away($workspaceUrl.$uri, 308);

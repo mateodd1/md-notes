@@ -52,23 +52,47 @@ class NotesController extends Controller
         return $this->workspace($request, $path, $content);
     }
 
-    public function storeFolder(Request $request): RedirectResponse
+    public function storeFolder(Request $request): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'parent' => ['nullable', 'string', 'max:500'],
             'name' => ['required', 'string', 'max:80'],
+            'active_path' => ['nullable', 'string', 'max:500'],
         ]);
 
         try {
             $this->spaces->createFolder($request->user(), $data['parent'] ?? '', $data['name']);
         } catch (RuntimeException $exception) {
-            return back()->withErrors(['folder' => $exception->getMessage()]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                    'errors' => ['name' => [$exception->getMessage()]],
+                ], 422);
+            }
+
+            return back()->withErrors(['name' => $exception->getMessage()])->withInput();
+        }
+
+        if ($request->expectsJson()) {
+            $nodes = $this->spaces->tree($request->user());
+
+            return response()->json([
+                'tree' => view('notes._tree', [
+                    'nodes' => $nodes,
+                    'path' => $data['active_path'] ?? '',
+                ])->render(),
+                'parentOptions' => view('notes._parent-options', [
+                    'nodes' => $nodes,
+                    'depth' => 0,
+                ])->render(),
+                'message' => __('ui.folder_created'),
+            ], 201);
         }
 
         return back()->with('status', __('ui.folder_created'));
     }
 
-    public function storeNote(Request $request): RedirectResponse
+    public function storeNote(Request $request): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'parent' => ['nullable', 'string', 'max:500'],
@@ -79,7 +103,26 @@ class NotesController extends Controller
             $path = $this->spaces->createNote($request->user(), $data['parent'] ?? '', $data['name']);
             $this->history->record($request->user(), $path, $this->spaces->read($request->user(), $path));
         } catch (RuntimeException $exception) {
-            return back()->withErrors(['note' => $exception->getMessage()]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                    'errors' => ['name' => [$exception->getMessage()]],
+                ], 422);
+            }
+
+            return back()->withErrors(['name' => $exception->getMessage()])->withInput();
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'path' => $path,
+                'url' => route('notes.show', ['path' => $path]),
+                'tree' => view('notes._tree', [
+                    'nodes' => $this->spaces->tree($request->user()),
+                    'path' => $path,
+                ])->render(),
+                'message' => __('ui.note_created'),
+            ], 201);
         }
 
         return redirect()->route('notes.show', ['path' => $path])->with('status', __('ui.note_created'));
@@ -404,12 +447,23 @@ class NotesController extends Controller
 
     private function workspace(Request $request, ?string $path = null, string $content = ''): View
     {
+        $attachments = $path === null
+            ? []
+            : array_map(static fn (array $attachment): array => [
+                ...$attachment,
+                'url' => route('media.show', ['filename' => $attachment['filename']]),
+                'preview_url' => $attachment['is_pdf']
+                    ? route('media.preview', ['filename' => $attachment['filename']])
+                    : null,
+            ], $this->media->attachmentList($request->user(), $content));
+
         return view('notes.workspace', [
             'tree' => $this->spaces->tree($request->user()),
             'path' => $path,
             'content' => $content,
             'title' => $path === null ? __('ui.your_notes') : Str::beforeLast(basename($path), '.'),
             'rendered' => $path === null ? '' : $this->renderMarkdown($content),
+            'attachments' => $attachments,
             'quota' => $this->quota->summary($request->user()),
         ]);
     }

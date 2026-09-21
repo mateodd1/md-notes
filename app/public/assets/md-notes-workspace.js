@@ -4,14 +4,15 @@
     const t = config.translations;
     const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const quotaUrl = config.urls.quota;
-    let toastTimer = null;
+    let toastTimer = null; let toastRemovalTimer = null;
     const getToast = () => document.getElementById('toast') || Object.assign(document.body.appendChild(document.createElement('div')), { id: 'toast', className: 'toast', role: 'status' });
-    const dismissToast = (element) => { element.classList.add('hiding'); setTimeout(() => element.remove(), 220); };
-    function showToast(message, type = '') { const element = getToast(); clearTimeout(toastTimer); element.className = `toast ${type}`; element.replaceChildren(); const label = document.createElement('span'); label.textContent = message; const close = document.createElement('button'); close.type = 'button'; close.setAttribute('aria-label', t.close); close.textContent = '×'; close.onclick = () => dismissToast(element); element.append(label, close); toastTimer = setTimeout(() => dismissToast(element), 3000); }
-    function showUploadProgress(message, percentage = 0) { const element = getToast(); clearTimeout(toastTimer); element.className = 'toast upload-progress'; element.replaceChildren(); const label = document.createElement('span'); label.className = 'upload-progress-label'; label.textContent = message; const track = document.createElement('div'); track.className = 'upload-progress-track'; track.setAttribute('role', 'progressbar'); track.setAttribute('aria-valuemin', '0'); track.setAttribute('aria-valuemax', '100'); track.setAttribute('aria-valuenow', String(percentage)); const bar = document.createElement('span'); bar.style.width = `${percentage}%`; track.append(bar); element.append(label, track); }
-    if (document.getElementById('toast')) { toastTimer = setTimeout(() => { const element = document.getElementById('toast'); if (element) dismissToast(element); }, 3000); }
+    const dismissToast = (element) => { clearTimeout(toastRemovalTimer); element.classList.remove('is-entering'); element.classList.add('hiding'); toastRemovalTimer = setTimeout(() => { if (element.classList.contains('hiding')) element.remove(); }, 220); };
+    const animateToast = (element) => { clearTimeout(toastRemovalTimer); clearTimeout(element.toastAnimationTimer); element.classList.remove('is-entering', 'hiding'); void element.offsetWidth; element.classList.add('is-entering'); element.toastAnimationTimer = setTimeout(() => element.classList.remove('is-entering'), 300); };
+    function showToast(message, type = '') { const element = getToast(); clearTimeout(toastTimer); element.className = `toast ${type}`; element.setAttribute('role', type === 'error' ? 'alert' : 'status'); element.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite'); element.replaceChildren(); const label = document.createElement('span'); label.textContent = message; const close = document.createElement('button'); close.type = 'button'; close.setAttribute('aria-label', t.close); close.textContent = '×'; close.onclick = () => dismissToast(element); element.append(label, close); animateToast(element); toastTimer = setTimeout(() => dismissToast(element), 3000); }
+    function showUploadProgress(message, percentage = 0) { const element = getToast(); clearTimeout(toastTimer); const isNewProgress = !element.classList.contains('upload-progress'); element.className = 'toast upload-progress'; element.setAttribute('role', 'status'); element.setAttribute('aria-live', 'polite'); element.replaceChildren(); const label = document.createElement('span'); label.className = 'upload-progress-label'; label.textContent = message; const track = document.createElement('div'); track.className = 'upload-progress-track'; track.setAttribute('role', 'progressbar'); track.setAttribute('aria-valuemin', '0'); track.setAttribute('aria-valuemax', '100'); track.setAttribute('aria-valuenow', String(percentage)); const bar = document.createElement('span'); bar.style.width = `${percentage}%`; track.append(bar); element.append(label, track); if (isNewProgress) animateToast(element); }
+    if (document.getElementById('toast')) { animateToast(document.getElementById('toast')); toastTimer = setTimeout(() => { const element = document.getElementById('toast'); if (element) dismissToast(element); }, 3000); }
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)'); const resolveTheme = (theme) => theme === 'system' ? (systemTheme.matches ? 'dark' : 'light') : theme; const readTheme = () => { try { return localStorage.getItem('md-notes-theme') || 'system'; } catch (_) { return 'system'; } }; const setTheme = (theme, persist = true) => { document.documentElement.classList.toggle('dark', resolveTheme(theme) === 'dark'); if (persist) try { localStorage.setItem('md-notes-theme', theme); } catch (_) {} document.querySelectorAll('[data-theme-choice]').forEach((button) => button.classList.toggle('selected', button.dataset.themeChoice === theme)); }; const bindThemeChoices = () => { document.querySelectorAll('[data-theme-choice]').forEach((button) => { if (button.dataset.themeBound) return; button.dataset.themeBound = 'true'; button.addEventListener('click', () => setTheme(button.dataset.themeChoice)); }); }; setTheme(readTheme(), false); bindThemeChoices(); systemTheme.addEventListener('change', () => { if (readTheme() === 'system') setTheme('system', false); });
-    const tree = document.getElementById('tree'); const rootDropTarget = document.getElementById('root-drop-target'); const sidebarBackdrop = document.getElementById('sidebar-backdrop'); let mobileNotesToggle = null; const setMobileSidebar = (open) => { document.body.classList.toggle('sidebar-open', open); mobileNotesToggle?.setAttribute('aria-expanded', String(open)); }; const bindMobileSidebarToggle = () => { mobileNotesToggle = document.getElementById('mobile-notes-toggle'); if (!mobileNotesToggle) return; mobileNotesToggle.setAttribute('aria-expanded', String(document.body.classList.contains('sidebar-open'))); if (mobileNotesToggle.dataset.sidebarBound) return; mobileNotesToggle.dataset.sidebarBound = 'true'; mobileNotesToggle.addEventListener('click', () => setMobileSidebar(!document.body.classList.contains('sidebar-open'))); }; bindMobileSidebarToggle(); sidebarBackdrop.addEventListener('click', () => setMobileSidebar(false)); window.matchMedia('(min-width: 781px)').addEventListener('change', (event) => { if (event.matches) setMobileSidebar(false); }); let draggedPath = null; let draggedType = null;
+    const tree = document.getElementById('tree'); const rootDropTarget = document.getElementById('root-drop-target'); const sidebarBackdrop = document.getElementById('sidebar-backdrop'); let mobileNotesToggle = null; const setMobileSidebar = (open) => { document.body.classList.toggle('sidebar-open', open); mobileNotesToggle?.setAttribute('aria-expanded', String(open)); }; const bindMobileSidebarToggle = () => { mobileNotesToggle = document.getElementById('mobile-notes-toggle'); if (!mobileNotesToggle) return; mobileNotesToggle.setAttribute('aria-expanded', String(document.body.classList.contains('sidebar-open'))); if (mobileNotesToggle.dataset.sidebarBound) return; mobileNotesToggle.dataset.sidebarBound = 'true'; mobileNotesToggle.addEventListener('click', () => setMobileSidebar(!document.body.classList.contains('sidebar-open'))); }; bindMobileSidebarToggle(); sidebarBackdrop.addEventListener('click', () => setMobileSidebar(false)); window.matchMedia('(max-width:780px), (max-width:1024px) and (pointer:coarse)').addEventListener('change', (event) => { if (!event.matches) setMobileSidebar(false); }); let draggedPath = null; let draggedType = null;
     const refreshStorageMeter = async () => { if (document.visibilityState !== 'visible') return; try { const response = await fetch(quotaUrl, { headers: { Accept: 'application/json' } }); if (!response.ok) return; const quota = await response.json(); const meter = document.getElementById('storage-meter'); if (!meter) return; const value = meter.querySelector('.storage-meter-head strong'); const progress = meter.querySelector('[role="progressbar"]'); const bar = progress?.querySelector('span'); if (value) value.textContent = `${quota.used_human} / ${quota.limit_human}`; if (progress) progress.setAttribute('aria-valuenow', String(quota.percentage)); if (bar) bar.style.width = `${quota.percentage}%`; } catch (_) {} };
     setInterval(refreshStorageMeter, 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshStorageMeter(); });
     const contextMenu = document.getElementById('context-menu'); let contextTarget = { type: 'root', path: '', name: '', color: '', collapsed: false, pinned: false };
@@ -19,10 +20,62 @@
     const modalAnimationDuration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 170;
     const openModal = (id) => { window.location.hash = `#${id}`; };
     const closeModal = (nextHash = '') => { const modal = document.querySelector('.modal:target'); if (!modal) { window.location.hash = nextHash; return; } modal.classList.add('is-closing'); setTimeout(() => { modal.classList.remove('is-closing'); window.location.hash = nextHash; }, modalAnimationDuration); };
+    const pdfViewerFrame = document.getElementById('pdf-viewer-frame');
+    const clearPdfViewer = () => { if (pdfViewerFrame) pdfViewerFrame.removeAttribute('src'); };
+    const openPdfViewer = (trigger) => {
+        const previewUrl = trigger.dataset.pdfPreviewUrl;
+        if (!previewUrl || !pdfViewerFrame) return;
+        document.getElementById('pdf-viewer-name').textContent = trigger.dataset.pdfName || '';
+        const download = document.getElementById('pdf-viewer-download');
+        download.href = trigger.dataset.pdfDownloadUrl || previewUrl;
+        download.download = trigger.dataset.pdfName || '';
+        document.getElementById('pdf-viewer-new-tab').href = previewUrl;
+        pdfViewerFrame.src = previewUrl;
+        openModal('pdf-viewer');
+    };
+    document.addEventListener('click', (event) => { const trigger = event.target.closest('[data-pdf-preview-url]'); if (!trigger) return; event.preventDefault(); openPdfViewer(trigger); });
+    window.addEventListener('hashchange', () => { if (window.location.hash !== '#pdf-viewer') clearPdfViewer(); });
     let propertiesWasEditing = false;
     const closePropertiesModal = () => { const modal = document.getElementById('note-properties'); if (!modal?.classList.contains('is-open')) return false; modal.classList.add('is-closing'); setTimeout(() => { modal.classList.remove('is-open', 'is-closing'); if (propertiesWasEditing && editorLayout && !editorLayout.classList.contains('is-reading')) editor?.focus(); propertiesWasEditing = false; }, modalAnimationDuration); return true; };
     document.addEventListener('click', (event) => { const closeLink = event.target.closest('.modal .modal-footer > a[href^="#"]'); if (!closeLink) return; event.preventDefault(); if (closePropertiesModal()) return; closeModal(closeLink.getAttribute('href') === '#' ? '' : closeLink.getAttribute('href')); });
-    document.addEventListener('submit', (event) => { const form = event.target; const modal = form.closest('.modal'); if (!modal || form.dataset.modalSubmitting || !form.checkValidity()) return; event.preventDefault(); form.dataset.modalSubmitting = 'true'; modal.classList.add('is-closing'); setTimeout(() => HTMLFormElement.prototype.submit.call(form), modalAnimationDuration); });
+    const clearCreateFormError = (form) => { form.elements.name?.removeAttribute('aria-invalid'); };
+    const showCreateFormError = (form, message) => { const field = form.elements.name; field?.setAttribute('aria-invalid', 'true'); field?.focus(); if (field?.setSelectionRange) field.setSelectionRange(field.value.length, field.value.length); showToast(message, 'error'); };
+    const updateParentOptions = (html) => { if (typeof html !== 'string') return; document.querySelectorAll('[data-parent-picker] .parent-options').forEach((options) => { options.querySelectorAll('[data-parent-option]:not([data-parent-value=""])').forEach((option) => option.remove()); options.insertAdjacentHTML('beforeend', html); }); };
+    const submitCreateForm = async (form) => {
+        if (form.dataset.modalSubmitting) return;
+        clearCreateFormError(form);
+        form.dataset.modalSubmitting = 'true';
+        const submitButton = form.querySelector('[type="submit"], button:not([type])');
+        if (submitButton) submitButton.disabled = true;
+        const fields = new URLSearchParams();
+        new FormData(form).forEach((value, key) => fields.append(key, String(value)));
+        fields.set('active_path', activePath || '');
+        try {
+            const response = await fetch(form.action, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken }, credentials: 'same-origin', body: fields });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const fieldError = Object.values(result.errors || {}).flat().find((message) => typeof message === 'string');
+                throw new Error(fieldError || result.message || t.couldNotCreate);
+            }
+            if (typeof result.tree === 'string') { tree.innerHTML = result.tree; bindTreeInteractions(); }
+            updateParentOptions(result.parentOptions);
+            showToast(result.message);
+            const kind = form.dataset.createKind;
+            const targetUrl = result.url;
+            form.reset();
+            setParentPicker(kind, '');
+            closeModal();
+            refreshStorageMeter();
+            if (kind === 'note' && targetUrl) setTimeout(() => navigateToNote(targetUrl), modalAnimationDuration);
+        } catch (error) {
+            showCreateFormError(form, error.message || t.couldNotCreate);
+        } finally {
+            delete form.dataset.modalSubmitting;
+            if (submitButton) submitButton.disabled = false;
+        }
+    };
+    document.querySelectorAll('[data-create-form]').forEach((form) => form.elements.name?.addEventListener('input', () => clearCreateFormError(form)));
+    document.addEventListener('submit', (event) => { const form = event.target; const modal = form.closest('.modal'); if (!modal || !form.checkValidity()) return; if (form.matches('[data-create-form]')) { event.preventDefault(); submitCreateForm(form); return; } if (form.dataset.modalSubmitting) return; event.preventDefault(); form.dataset.modalSubmitting = 'true'; modal.classList.add('is-closing'); setTimeout(() => HTMLFormElement.prototype.submit.call(form), modalAnimationDuration); });
     const setParentPicker = (kind, parent = '') => { const field = document.getElementById(kind === 'folder' ? 'folder-parent' : 'note-parent'); const picker = document.getElementById(kind === 'folder' ? 'folder-parent-picker' : 'note-parent-picker'); const option = [...picker.querySelectorAll('[data-parent-option]')].find((element) => element.dataset.parentValue === parent) || picker.querySelector('[data-parent-option]'); field.value = option.dataset.parentValue; picker.querySelector('[data-parent-label]').textContent = option.dataset.parentLabel; picker.open = false; };
     document.querySelectorAll('[data-parent-picker]').forEach((picker) => picker.addEventListener('click', (event) => { const option = event.target.closest('[data-parent-option]'); if (!option) return; event.preventDefault(); const field = document.getElementById(picker.dataset.parentField); field.value = option.dataset.parentValue; picker.querySelector('[data-parent-label]').textContent = option.dataset.parentLabel; picker.open = false; }));
     const openCreateModal = (kind, parent) => { setParentPicker(kind, parent); openModal(kind === 'folder' ? 'new-folder' : 'new-note'); setTimeout(() => document.getElementById(kind === 'folder' ? 'folder-name' : 'note-name').focus(), 0); };
@@ -35,8 +88,40 @@
     const appendProperty = (container, label, value) => { const term = document.createElement('dt'); term.textContent = label; const detail = document.createElement('dd'); detail.textContent = value; container.append(term, detail); };
     const openPropertiesModal = async () => { const path = document.getElementById('note-properties-path'); const content = document.getElementById('note-properties-content'); propertiesWasEditing = Boolean(editorLayout && !editorLayout.classList.contains('is-reading')); path.textContent = contextTarget.path; content.replaceChildren(); appendProperty(content, t.createdAt, t.loadingProperties); document.getElementById('note-properties').classList.add('is-open'); try { const response = await fetch(`${config.urls.properties}/${contextTarget.path.split('/').map(encodeURIComponent).join('/')}`, { headers: { Accept: 'application/json' } }); const properties = await response.json(); if (!response.ok) throw new Error(properties.message || t.couldNotLoadProperties); const createdAt = new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeStyle: 'short' }).format(new Date(properties.created_at)); content.replaceChildren(); appendProperty(content, t.createdAt, createdAt); appendProperty(content, t.markdownSize, formatBytes(properties.markdown_bytes)); appendProperty(content, t.attachmentsSize, `${formatBytes(properties.attachments_bytes)} · ${t.attachmentsCount.replace(':count', properties.attachments_count)}`); appendProperty(content, t.totalSize, formatBytes(properties.total_bytes)); } catch (error) { content.replaceChildren(); const detail = document.createElement('dd'); detail.className = 'properties-error'; detail.textContent = error.message || t.couldNotLoadProperties; content.append(detail); } };
     const pinItem = async () => { try { const pinned = !contextTarget.pinned; const response = await fetch(config.urls.pin, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken }, body: new URLSearchParams({ _token: csrfToken, _method: 'PATCH', path: contextTarget.path, pinned: pinned ? '1' : '0', active_path: activePath || '' }) }); const result = await response.json().catch(() => ({ message: t.couldNotUpdateTree })); if (!response.ok) throw new Error(result.message || t.couldNotUpdateTree); tree.innerHTML = result.tree; bindTreeInteractions(); showToast(result.message); } catch (error) { showToast(error.message || t.couldNotUpdateTree, 'error'); } };
+    let exportingPdf = false;
+    const exportNotePdf = async () => {
+        if (exportingPdf || navigating) return;
+        const path = contextTarget.path;
+        if (path === activePath && pendingUploads) { showToast(t.uploading); return; }
+        exportingPdf = true;
+        try {
+            if (path === activePath && !await saveQuietly(true)) throw new Error(lastSaveError || t.couldNotSave);
+            showToast(t.pdfPreparing);
+            clearTimeout(toastTimer);
+            const response = await fetch(`${noteUrl(path)}/pdf`, {
+                headers: { Accept: 'application/pdf, application/json' }, credentials: 'same-origin', cache: 'no-store',
+            });
+            if (!response.ok || !response.headers.get('Content-Type')?.includes('application/pdf')) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.message || t.pdfExportFailed);
+            }
+            const url = URL.createObjectURL(await response.blob());
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = path.split('/').pop().replace(/\.md$/i, '.pdf');
+            document.body.append(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+            showToast(t.pdfDownloaded);
+        } catch (error) {
+            showToast(error.message || t.pdfExportFailed, 'error');
+        } finally {
+            exportingPdf = false;
+        }
+    };
     let suppressTreeClickUntil = 0;
-    const openContextMenu = (item, clientX, clientY) => { contextTarget = item ? { type: item.dataset.contextType, path: item.dataset.contextPath, name: item.dataset.contextName, color: item.dataset.contextColor || '', collapsed: item.dataset.contextCollapsed === '1', pinned: item.dataset.contextPinned === '1' } : { type: 'root', path: '', name: '', color: '', collapsed: false, pinned: false }; const canCreate = contextTarget.type !== 'note'; contextMenu.querySelectorAll('[data-context-item-only]').forEach((element) => { element.hidden = contextTarget.type === 'root'; }); contextMenu.querySelectorAll('[data-context-note-only]').forEach((element) => { element.hidden = contextTarget.type !== 'note'; }); contextMenu.querySelectorAll('[data-context-action="new-folder"], [data-context-action="new-note"]').forEach((element) => { element.hidden = !canCreate; }); contextMenu.querySelector('[data-context-action="new-folder"]').textContent = contextTarget.type === 'folder' ? t.newSubfolder : t.newFolder; contextMenu.querySelector('[data-context-action="new-note"]').textContent = contextTarget.type === 'folder' ? t.newNoteHere : `${t.newNote} .md`; contextMenu.querySelector('[data-context-action="pin"]').textContent = contextTarget.pinned ? t.unpin : t.pin; contextMenu.classList.add('open'); const margin = 8; contextMenu.style.left = `${Math.max(margin, Math.min(clientX, window.innerWidth - contextMenu.offsetWidth - margin))}px`; contextMenu.style.top = `${Math.max(margin, Math.min(clientY, window.innerHeight - contextMenu.offsetHeight - margin))}px`; };
+    const openContextMenu = (item, clientX, clientY) => { contextTarget = item ? { type: item.dataset.contextType, path: item.dataset.contextPath, name: item.dataset.contextName, color: item.dataset.contextColor || '', collapsed: item.dataset.contextCollapsed === '1', pinned: item.dataset.contextPinned === '1' } : { type: 'root', path: '', name: '', color: '', collapsed: false, pinned: false }; const canCreate = contextTarget.type !== 'note'; contextMenu.querySelectorAll('[data-context-item-only]').forEach((element) => { element.hidden = contextTarget.type === 'root'; }); contextMenu.querySelectorAll('[data-context-note-only]').forEach((element) => { element.hidden = contextTarget.type !== 'note'; }); contextMenu.querySelectorAll('[data-context-action="new-folder"], [data-context-action="new-note"]').forEach((element) => { element.hidden = !canCreate; }); contextMenu.querySelector('[data-context-action="new-folder"]').textContent = contextTarget.type === 'folder' ? t.newSubfolder : t.newFolder; contextMenu.querySelector('[data-context-action="new-note"]').textContent = contextTarget.type === 'folder' ? t.newNoteHere : `${t.newNote} .md`; contextMenu.querySelector('[data-context-action="pin"]').textContent = contextTarget.pinned ? t.unpin : t.pin; contextMenu.classList.add('open'); const margin = 8; const viewportTop = window.visualViewport?.offsetTop || 0; const viewportHeight = window.visualViewport?.height || window.innerHeight; contextMenu.style.left = `${Math.max(margin, Math.min(clientX, window.innerWidth - contextMenu.offsetWidth - margin))}px`; contextMenu.style.top = `${Math.max(viewportTop + margin, Math.min(clientY, viewportTop + viewportHeight - contextMenu.offsetHeight - margin))}px`; };
     tree.addEventListener('contextmenu', (event) => { event.preventDefault(); openContextMenu(event.target.closest('[data-context-path]'), event.clientX, event.clientY); });
     tree.addEventListener('click', (event) => { const trigger = event.target.closest('[data-context-trigger]'); if (!trigger) return; event.preventDefault(); event.stopPropagation(); const bounds = trigger.getBoundingClientRect(); openContextMenu(trigger.closest('[data-context-path]'), bounds.right, bounds.bottom); });
     let longPressTimer = null; let longPressOrigin = null; let longPressTriggered = false;
@@ -45,8 +130,8 @@
     tree.addEventListener('pointermove', (event) => { if (!longPressOrigin || Math.hypot(event.clientX - longPressOrigin.x, event.clientY - longPressOrigin.y) < 10) return; clearLongPress(); });
     tree.addEventListener('pointerup', (event) => { const wasLongPress = longPressTriggered; clearLongPress(); if (wasLongPress) event.preventDefault(); }); tree.addEventListener('pointercancel', clearLongPress);
     tree.addEventListener('click', (event) => { if (Date.now() >= suppressTreeClickUntil) return; event.preventDefault(); event.stopImmediatePropagation(); }, true);
-    contextMenu.addEventListener('click', (event) => { const action = event.target.closest('[data-context-action]')?.dataset.contextAction; if (!action) return; closeContextMenu(); if (action === 'new-folder') openCreateModal('folder', contextTarget.path); if (action === 'new-note') openCreateModal('note', contextTarget.path); if (action === 'rename') openRenameModal(); if (action === 'share') openShareModal(); if (action === 'pin') pinItem(); if (action === 'history') openVersionHistory(contextTarget.path); if (action === 'properties') openPropertiesModal(); if (action === 'download') window.location.assign(`${noteUrlBase}/download/${contextTarget.path.split('/').map(encodeURIComponent).join('/')}`); if (action === 'delete') openDeleteModal(); });
-    document.addEventListener('click', (event) => { if (!contextMenu.contains(event.target)) closeContextMenu(); }); document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeContextMenu(); setMobileSidebar(false); } }); window.addEventListener('scroll', closeContextMenu, true);
+    contextMenu.addEventListener('click', (event) => { const action = event.target.closest('[data-context-action]')?.dataset.contextAction; if (!action) return; closeContextMenu(); if (action === 'new-folder') openCreateModal('folder', contextTarget.path); if (action === 'new-note') openCreateModal('note', contextTarget.path); if (action === 'rename') openRenameModal(); if (action === 'share') openShareModal(); if (action === 'pin') pinItem(); if (action === 'history') openVersionHistory(contextTarget.path); if (action === 'pdf') exportNotePdf(); if (action === 'properties') openPropertiesModal(); if (action === 'download') window.location.assign(`${noteUrlBase}/download/${contextTarget.path.split('/').map(encodeURIComponent).join('/')}`); if (action === 'delete') openDeleteModal(); });
+    document.addEventListener('click', (event) => { if (!contextMenu.contains(event.target)) closeContextMenu(); }); document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeContextMenu(); setMobileSidebar(false); } }); window.addEventListener('scroll', (event) => { if (!(event.target instanceof Node) || !contextMenu.contains(event.target)) closeContextMenu(); }, true);
     const shareUrlInput = document.getElementById('share-url'); const copyShareUrl = document.getElementById('copy-share-url'); if (shareUrlInput && copyShareUrl) { window.location.hash = '#share-created'; copyShareUrl.addEventListener('click', () => { shareUrlInput.select(); navigator.clipboard?.writeText(shareUrlInput.value).then(() => showToast(t.linkCopied)).catch(() => showToast(t.copySelectedLink)) || showToast(t.copySelectedLink); }); }
     let activePath = config.activePath; const noteUrlBase = config.urls.notes; const historyUrlBase = config.urls.history; const versionUrlBase = config.urls.versions;
     const noteUrl = (path) => `${noteUrlBase}/${path.split('/').map(encodeURIComponent).join('/')}`; const historyUrl = (path) => `${historyUrlBase}/${path.split('/').map(encodeURIComponent).join('/')}`; const versionUrl = (id) => `${versionUrlBase}/${encodeURIComponent(id)}`;
@@ -183,19 +268,41 @@
             event.preventDefault();
             queueUploads(files);
         });
-        editorLayout.addEventListener('dragover', (event) => {
-            if (!event.dataTransfer?.files.length) return;
+        const hasFilePayload = (event) => {
+            const types = Array.from(event.dataTransfer?.types || []);
+            // Browsers keep DataTransfer.files empty during dragover for security reasons.
+            const items = Array.from(event.dataTransfer?.items || []);
+            return Boolean(event.dataTransfer?.files?.length) || types.includes('Files') || items.some((item) => item.kind === 'file');
+        };
+        const canDropInEditor = () => !editorLayout.classList.contains('is-reading');
+        let editorDragDepth = 0;
+        const clearEditorDropTarget = () => {
+            editorDragDepth = 0;
+            editorLayout.classList.remove('is-file-drop-target');
+        };
+        editorLayout.addEventListener('dragenter', (event) => {
+            if (!canDropInEditor() || !hasFilePayload(event)) return;
             event.preventDefault();
+            editorDragDepth++;
+            editorLayout.classList.add('is-file-drop-target');
+        });
+        editorLayout.addEventListener('dragover', (event) => {
+            if (!canDropInEditor() || !hasFilePayload(event)) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
             editorLayout.classList.add('is-file-drop-target');
         });
         editorLayout.addEventListener('dragleave', (event) => {
-            if (!event.relatedTarget || !editorLayout.contains(event.relatedTarget)) editorLayout.classList.remove('is-file-drop-target');
+            if (!canDropInEditor() || (!hasFilePayload(event) && !editorLayout.classList.contains('is-file-drop-target'))) return;
+            editorDragDepth = Math.max(0, editorDragDepth - 1);
+            if (!editorDragDepth || !event.relatedTarget || !editorLayout.contains(event.relatedTarget)) clearEditorDropTarget();
         });
         editorLayout.addEventListener('drop', (event) => {
+            if (!canDropInEditor() || !hasFilePayload(event)) return;
             const files = event.dataTransfer?.files;
             if (!files?.length) return;
             event.preventDefault();
-            editorLayout.classList.remove('is-file-drop-target');
+            clearEditorDropTarget();
             queueUploads(files);
         });
         attachmentButton?.addEventListener('click', () => attachmentInput?.click());

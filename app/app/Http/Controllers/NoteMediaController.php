@@ -8,12 +8,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\HeaderUtils;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class NoteMediaController extends Controller
 {
-    public function __construct(private readonly NoteMedia $media)
-    {
-    }
+    public function __construct(private readonly NoteMedia $media) {}
 
     public function store(Request $request): JsonResponse
     {
@@ -47,6 +47,7 @@ class NoteMediaController extends Controller
     public function show(Request $request, string $filename): BinaryFileResponse
     {
         $path = $this->media->path($request->user(), $filename);
+        $downloadName = $this->media->downloadName($request->user(), $filename);
         $headers = [
             'Content-Type' => mime_content_type($path) ?: 'application/octet-stream',
             'Cache-Control' => 'private, max-age=3600',
@@ -54,8 +55,25 @@ class NoteMediaController extends Controller
         ];
 
         return $this->media->isImagePath($path)
-            ? response()->file($path, $headers)
-            : response()->download($path, basename($filename), $headers);
+            ? response()->file($path, [...$headers, 'Content-Disposition' => HeaderUtils::makeDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $downloadName)])
+            : response()->download($path, $downloadName, $headers);
+    }
+
+    public function previewPdf(Request $request, string $filename): BinaryFileResponse
+    {
+        $path = $this->media->path($request->user(), $filename);
+        if (! $this->media->isPdfPath($path)) {
+            abort(404);
+        }
+
+        $downloadName = $this->media->downloadName($request->user(), $filename);
+
+        return response()->file($path, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => HeaderUtils::makeDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $downloadName),
+            'Cache-Control' => 'private, max-age=3600',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     private function attachmentLabel(string $name): string

@@ -24,6 +24,7 @@ Un espacio de apuntes privado, rápido y centrado en archivos Markdown reales.
 | 🔐 | Privacidad | Las notas son privadas por defecto; solo se accede a ellas mediante enlaces compartidos que puedes limitar o revocar. |
 | 💾 | Cuota | Cada cuenta dispone de 100 MB para notas, adjuntos, historial y papelera, con indicador de uso en el panel y el perfil. |
 | 📦 | Exportación | Desde Perfil puedes pedir un ZIP privado con tus notas, adjuntos, historial y datos de cuenta mediante un enlace enviado por correo. |
+| 📄 | PDF | Exporta una nota desde su menú contextual, con formato Markdown e imágenes adjuntas. |
 | 🌗 | Apariencia e idioma | Tema claro, oscuro o según el sistema. Español para navegadores en español e inglés para el resto. |
 | ⚡ | Experiencia fluida | Navegación entre notas, guardado y actualización del árbol sin recargar toda la página. |
 
@@ -47,10 +48,12 @@ Los archivos y carpetas se pueden crear, renombrar, mover o eliminar con clic de
 Desde el menú contextual de cualquier `.md` se puede crear una URL corta como:
 
 ```text
-https://app.mdnotes.net/share/ABCDE
+https://mdnotes.net/share/aB2cD3
 ```
 
 El receptor solo ve una versión renderizada de esa nota. Puedes cambiar la duración o revocar el enlace desde **Perfil → Compartidos**. Las imágenes y archivos adjuntos de una nota compartida se sirven únicamente mientras su enlace siga activo.
+
+Los nuevos identificadores tienen seis caracteres y distinguen mayúsculas de minúsculas. Combinan números y letras sin `0`, `1`, `I`, `O`, `i`, `l` ni `o`. Los enlaces existentes se conservan.
 
 ## API para terminal y automatizaciones
 
@@ -111,6 +114,13 @@ DB_PORT=3306
 DB_DATABASE=md_notes
 DB_USERNAME=md_notes
 DB_PASSWORD=usa-la-misma-contraseña-de-db.env
+
+SESSION_DRIVER=database
+SESSION_ENCRYPT=true
+SESSION_COOKIE=__Host-md-notes-session
+SESSION_SECURE_COOKIE=true
+SESSION_PATH=/
+SESSION_DOMAIN=null
 ```
 
 Instala las dependencias y genera la clave de Laravel una vez:
@@ -130,6 +140,8 @@ docker compose exec -T app php artisan migrate --force
 ```
 
 El servicio `app` se conecta a la red del proxy `nginx-pm_default`; configura allí tu dominio y TLS. MySQL no publica ningún puerto al exterior.
+
+En `app/.env`, configura `MD_NOTES_TRUSTED_PROXIES` con las IP exactas de los proxies autorizados, separadas por comas. No se admiten comodines. Si cambia la IP del proxy, actualiza esa variable y ejecuta `php artisan config:cache`. El proxy debe sobrescribir el protocolo reenviado con el de la conexión real; `ops/md-notes-proxy.conf` contiene el ajuste para estos dominios en Nginx Proxy Manager.
 
 ### Dominio canónico y migraciones
 

@@ -629,39 +629,6 @@ class NoteSpace
         return $sourceRelative;
     }
 
-    public function importLegacySpace(User $user): void
-    {
-        $destination = $this->root($user);
-
-        if (count(scandir($destination) ?: []) > 2 || ! is_dir('/legacy-space')) {
-            return;
-        }
-
-        $legacy = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator('/legacy-space', \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::SELF_FIRST,
-        );
-
-        foreach ($legacy as $item) {
-            if ($item->isLink()) {
-                continue;
-            }
-
-            $relative = ltrim(str_replace('/legacy-space', '', $item->getPathname()), '/');
-            if ($relative === '' || Str::startsWith($relative, ['_plug/', 'Library/', 'CONFIG.md', '.silverbullet'])) {
-                continue;
-            }
-
-            $target = $destination.'/'.$relative;
-            if ($item->isDir()) {
-                is_dir($target) || mkdir($target, 0770, true);
-            } elseif ($item->isFile()) {
-                is_dir(dirname($target)) || mkdir(dirname($target), 0770, true);
-                copy($item->getPathname(), $target);
-            }
-        }
-    }
-
     /** @return array<int, array<string, mixed>> */
     private function scan(string $directory, string $prefix = '', array $noteOrder = [], array $folderOrder = [], array $folderColors = [], array $folderCollapsed = [], array $pinned = []): array
     {
@@ -1281,7 +1248,7 @@ class NoteSpace
     {
         $name = trim($name);
         if (! preg_match('/^[\\pL\\pN][\\pL\\pN _().,!&-]{0,79}$/u', $name)) {
-            throw new RuntimeException('El nombre solo puede tener letras, números, espacios y signos básicos.');
+            throw new RuntimeException(__('ui.invalid_item_name'));
         }
 
         return $name;
@@ -1296,9 +1263,7 @@ class NoteSpace
         }
 
         foreach ($segments as $segment) {
-            // This directory can remain in spaces imported before legacy
-            // SilverBullet plug folders were excluded from imports.
-            if ($segment !== '_plug' && ! preg_match('/^[\\pL\\pN][\\pL\\pN _().,!&-]{0,79}(?:\\.md)?$/u', $segment)) {
+            if (! preg_match('/^[\\pL\\pN][\\pL\\pN _().,!&-]{0,79}(?:\\.md)?$/u', $segment)) {
                 abort(404);
             }
         }

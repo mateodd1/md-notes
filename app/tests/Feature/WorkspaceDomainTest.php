@@ -32,7 +32,10 @@ class WorkspaceDomainTest extends TestCase
     public function test_landing_stays_on_public_domain_and_workspace_uses_the_subdomain_root(): void
     {
         $this->withHeader('Accept-Language', 'es')->get('https://mdnotes.net/')->assertOk()
-            ->assertSee('https://app.mdnotes.net/signup', false);
+            ->assertSee('https://app.mdnotes.net/login', false)
+            ->assertSee('https://app.mdnotes.net/signup', false)
+            ->assertSee('https://app.mdnotes.net/session-status', false)
+            ->assertHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://app.mdnotes.net; font-src 'self' data:");
         $this->get('https://mdnotes.net/documentation.md')->assertOk();
         $this->get('https://app.mdnotes.net/')->assertRedirect('https://app.mdnotes.net/login');
         $this->get('https://app.mdnotes.net/login')->assertOk();
@@ -41,7 +44,37 @@ class WorkspaceDomainTest extends TestCase
         $this->assertSame('https://app.mdnotes.net/settings', route('profile.edit'));
         $this->assertSame('https://mdnotes.net/api/notes/Test.md', route('api.notes.upload', ['path' => 'Test.md']));
         $this->assertSame('https://mdnotes.net', rtrim(route('home'), '/'));
+        $this->assertSame('https://mdnotes.net/share/A2BCD', route('shares.short', ['token' => 'A2BCD']));
+        $this->assertSame('https://app.mdnotes.net/share/A2BCD', route('shares.show', ['token' => 'A2BCD']));
+        $this->assertSame('https://app.mdnotes.net/share/A2BCD/media/abcdefghijklmnopqrstuvwx.png', route('shares.media', ['token' => 'A2BCD', 'filename' => 'abcdefghijklmnopqrstuvwx.png']));
+        $this->assertSame('https://app.mdnotes.net/share/A2BCD/copy', route('shares.copy', ['token' => 'A2BCD']));
         $this->assertSame('https://app.mdnotes.net/reset-password/reset-test', route('password.reset', ['token' => 'reset-test']));
+    }
+
+    public function test_landing_can_detect_a_workspace_session_without_sharing_the_cookie_domain(): void
+    {
+        $guestResponse = $this->withHeader('Origin', 'https://mdnotes.net')
+            ->getJson('https://app.mdnotes.net/session-status')
+            ->assertOk()
+            ->assertExactJson(['authenticated' => false])
+            ->assertHeader('Access-Control-Allow-Origin', 'https://mdnotes.net')
+            ->assertHeader('Access-Control-Allow-Credentials', 'true');
+
+        $this->assertTrue($guestResponse->headers->contains('Vary', 'Origin'));
+        $this->assertStringContainsString('no-store', (string) $guestResponse->headers->get('Cache-Control'));
+
+        $user = User::factory()->create();
+        $this->actingAs($user)
+            ->withHeader('Origin', 'https://mdnotes.net')
+            ->getJson('https://app.mdnotes.net/session-status')
+            ->assertOk()
+            ->assertExactJson(['authenticated' => true]);
+
+        $untrustedResponse = $this->withHeader('Origin', 'https://example.com')
+            ->getJson('https://app.mdnotes.net/session-status')
+            ->assertOk();
+
+        $this->assertFalse($untrustedResponse->headers->has('Access-Control-Allow-Origin'));
     }
 
     public function test_old_note_share_media_and_account_links_preserve_paths_and_queries(): void
@@ -52,7 +85,7 @@ class WorkspaceDomainTest extends TestCase
             'https://mdnotes.net/app/Clase/Una%20nota.md?mode=read' => 'https://app.mdnotes.net/Clase/Una%20nota.md?mode=read',
             'https://mdnotes.net/app/app/Clase/Apuntes.md' => 'https://app.mdnotes.net/app/Clase/Apuntes.md',
             'https://mdnotes.net/share/A2BCD?source=link' => 'https://app.mdnotes.net/share/A2BCD?source=link',
-            'https://md.mateo.ovh/share/A2BCD' => 'https://app.mdnotes.net/share/A2BCD',
+            'https://md.mateo.ovh/share/A2BCD' => 'https://mdnotes.net/share/A2BCD',
             'https://mdnotes.net/share/A2BCD/media/abcdefghijklmnopqrstuvwx.png' => 'https://app.mdnotes.net/share/A2BCD/media/abcdefghijklmnopqrstuvwx.png',
             'https://mdnotes.net/app/media/abcdefghijklmnopqrstuvwx.png' => 'https://app.mdnotes.net/media/abcdefghijklmnopqrstuvwx.png',
             'https://md.mateo.ovh/media/abcdefghijklmnopqrstuvwx.pdf' => 'https://app.mdnotes.net/media/abcdefghijklmnopqrstuvwx.pdf',
@@ -125,6 +158,8 @@ class WorkspaceDomainTest extends TestCase
         $imageUrl = 'https://app.mdnotes.net/share/A2BCD/media/'.$filename;
         $this->assertSame(8, substr_count($page->getContent(), 'src="'.$imageUrl.'"'));
         $this->get($imageUrl)->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->get('https://mdnotes.net/share/'.$share->token)
+            ->assertStatus(308)->assertRedirect('https://app.mdnotes.net/share/'.$share->token);
         $this->get('https://app.mdnotes.net/media/'.$filename)->assertRedirect('https://app.mdnotes.net/login');
         $this->actingAs($user)->get('https://app.mdnotes.net/Images.md')->assertOk()
             ->assertSee('src="https://app.mdnotes.net/media/'.$filename.'"', false);

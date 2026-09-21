@@ -9,7 +9,7 @@ const Saver = sandbox.module.exports;
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 
 test('workspace assets are valid classic JavaScript', () => {
-    for (const name of ['md-notes-saver.js', 'md-notes-search.js', 'md-notes-workspace.js', 'md-notes-trash.js']) {
+    for (const name of ['md-notes-saver.js', 'md-notes-search.js', 'md-notes-workspace.js', 'md-notes-trash.js', 'md-notes-viewport.js']) {
         assert.doesNotThrow(() => new vm.Script(fs.readFileSync(path.join(__dirname, '../../public/assets', name), 'utf8')));
     }
 });

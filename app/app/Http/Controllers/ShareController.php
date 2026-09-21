@@ -7,25 +7,26 @@ use App\Services\MarkdownMediaUrls;
 use App\Services\NoteMedia;
 use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
+use App\Services\ShareTokens;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\HeaderUtils;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class ShareController extends Controller
 {
-    private const TOKEN_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-
-    private const TOKEN_LENGTH = 5;
-
     public function __construct(
         private readonly NoteSpace $spaces,
         private readonly NoteMedia $media,
         private readonly MarkdownMediaUrls $mediaUrls,
         private readonly NoteVersionHistory $history,
+        private readonly ShareTokens $tokens,
     ) {}
 
     public function store(Request $request): RedirectResponse
@@ -44,15 +45,13 @@ class ShareController extends Controller
                 $share = SharedNote::query()->create([
                     'user_id' => $request->user()->getKey(),
                     'path' => $data['path'],
-                    'token' => $this->generateToken(),
+                    'token' => $this->tokens->generate(),
                     'expires_at' => $expiresAt,
                 ]);
 
                 break;
-            } catch (QueryException $exception) {
-                if (! str_contains($exception->getMessage(), 'shared_notes.token')) {
-                    throw $exception;
-                }
+            } catch (UniqueConstraintViolationException) {
+                // Retry token collisions on both MySQL and SQLite.
             }
         }
 
@@ -61,7 +60,7 @@ class ShareController extends Controller
         }
 
         return back()->with([
-            'share_url' => route('shares.show', ['token' => $share->token]),
+            'share_url' => $this->tokens->publicUrl($share->token),
             'share_expiration' => $expiresAt
                 ? __('ui.share_expires_at', ['date' => $expiresAt->isoFormat('L'), 'time' => $expiresAt->isoFormat('LT')])
                 : __('ui.share_does_not_expire'),
@@ -70,11 +69,16 @@ class ShareController extends Controller
 
     public function index(Request $request): View
     {
+        $shares = SharedNote::query()
+            ->where('user_id', $request->user()->getKey())
+            ->latest()
+            ->get();
+
         return view('shares.index', [
-            'shares' => SharedNote::query()
-                ->where('user_id', $request->user()->getKey())
-                ->latest()
-                ->get(),
+            'shares' => $shares,
+            'shareUrls' => $shares->mapWithKeys(fn (SharedNote $share): array => [
+                $share->getKey() => $this->tokens->publicUrl($share->token),
+            ]),
         ]);
     }
 
@@ -115,6 +119,19 @@ class ShareController extends Controller
         ]);
     }
 
+    public function redirectShareToWorkspace(Request $request, string $token): RedirectResponse
+    {
+        return $this->permanentRedirectWithQuery($request, route('shares.show', ['token' => $token]));
+    }
+
+    public function redirectMediaToWorkspace(Request $request, string $token, string $filename): RedirectResponse
+    {
+        return $this->permanentRedirectWithQuery($request, route('shares.media', [
+            'token' => $token,
+            'filename' => $filename,
+        ]));
+    }
+
     public function media(string $token, string $filename): BinaryFileResponse
     {
         $share = $this->activeShare($token);
@@ -123,6 +140,7 @@ class ShareController extends Controller
         abort_unless($this->mediaUrls->isReferenced($filename, $content), 404);
 
         $path = $this->media->path($share->user, $filename);
+        $downloadName = $this->media->downloadName($share->user, $filename);
         $headers = [
             'Content-Type' => mime_content_type($path) ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store',
@@ -130,8 +148,8 @@ class ShareController extends Controller
         ];
 
         return $this->media->isImagePath($path)
-            ? response()->file($path, $headers)
-            : response()->download($path, basename($filename), $headers);
+            ? response()->file($path, [...$headers, 'Content-Disposition' => HeaderUtils::makeDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $downloadName)])
+            : response()->download($path, $downloadName, $headers);
     }
 
     public function copyToSpace(Request $request, string $token): RedirectResponse
@@ -168,18 +186,6 @@ class ShareController extends Controller
             ->with('status', __('ui.shared_note_copied'));
     }
 
-    private function generateToken(): string
-    {
-        $token = '';
-        $lastIndex = strlen(self::TOKEN_ALPHABET) - 1;
-
-        for ($index = 0; $index < self::TOKEN_LENGTH; $index++) {
-            $token .= self::TOKEN_ALPHABET[random_int(0, $lastIndex)];
-        }
-
-        return $token;
-    }
-
     private function expiryFor(string $duration): mixed
     {
         return match ($duration) {
@@ -207,5 +213,12 @@ class ShareController extends Controller
         }
 
         return $share;
+    }
+
+    private function permanentRedirectWithQuery(Request $request, string $url): RedirectResponse
+    {
+        $query = $request->getQueryString();
+
+        return redirect()->away($url.($query === null ? '' : '?'.$query), 308);
     }
 }

@@ -6,7 +6,9 @@ use App\Mail\WelcomeToMdNotes;
 use App\Models\User;
 use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
+use App\Services\PasswordSecurity;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,12 +16,31 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
 
 class AuthController extends Controller
 {
+    public function sessionStatus(Request $request): JsonResponse
+    {
+        $response = response()->json([
+            'authenticated' => $request->user() !== null,
+        ]);
+
+        $allowedOrigin = rtrim((string) config('md-notes.canonical_url'), '/');
+        $requestOrigin = rtrim((string) $request->headers->get('Origin'), '/');
+
+        if ($requestOrigin !== '' && hash_equals($allowedOrigin, $requestOrigin)) {
+            $response->headers->set('Access-Control-Allow-Origin', $allowedOrigin);
+            $response->headers->set('Access-Control-Allow-Credentials', 'true');
+            $response->headers->set('Vary', 'Origin');
+        }
+
+        $response->headers->set('Cache-Control', 'private, no-store');
+
+        return $response;
+    }
+
     public function create(): View
     {
         return view('auth.login');
@@ -60,7 +81,6 @@ class AuthController extends Controller
             'password' => ['required', 'confirmed', 'min:8', 'max:128'],
         ]);
 
-        $firstAccount = User::query()->doesntExist();
         $user = DB::transaction(fn (): User => User::query()->create([
             'name' => $data['name'],
             'email' => mb_strtolower($data['email']),
@@ -68,16 +88,6 @@ class AuthController extends Controller
         ]));
 
         $spaces->root($user);
-        $legacyImported = false;
-        if ($firstAccount) {
-            try {
-                $spaces->importLegacySpace($user);
-                $legacyImported = true;
-            } catch (Throwable $exception) {
-                report($exception);
-            }
-        }
-
         $welcomePath = null;
         if ($spaces->tree($user) === []) {
             $welcomePath = $spaces->createNote($user, '', app()->getLocale() === 'es' ? 'Bienvenida' : 'Welcome');
@@ -97,9 +107,7 @@ class AuthController extends Controller
 
         return $welcomePath
             ? redirect()->route('notes.show', ['path' => $welcomePath])->with('status', __('ui.account_created'))
-            : redirect()->route('notes.index')->with('status', $legacyImported
-                ? __('ui.account_created_legacy_imported')
-                : __('ui.account_created'));
+            : redirect()->route('notes.index')->with('status', __('ui.account_created'));
     }
 
     public function forgotPasswordForm(): View
@@ -134,7 +142,7 @@ class AuthController extends Controller
         ]);
     }
 
-    public function resetPassword(Request $request): RedirectResponse
+    public function resetPassword(Request $request, PasswordSecurity $passwordSecurity): RedirectResponse
     {
         $data = $request->validate([
             'token' => ['required', 'string'],
@@ -144,11 +152,8 @@ class AuthController extends Controller
 
         $status = Password::reset(
             $data,
-            function (User $user, string $password): void {
-                $user->forceFill([
-                    'password' => Hash::make($password),
-                    'remember_token' => Str::random(60),
-                ])->save();
+            function (User $user, string $password) use ($passwordSecurity): void {
+                $passwordSecurity->change($user, $password);
 
                 event(new PasswordReset($user));
             },

@@ -3,8 +3,9 @@ FROM composer:2 AS composer
 FROM php:8.4-apache
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libicu-dev libsqlite3-dev libzip-dev unzip \
-    && docker-php-ext-install intl pdo_mysql pdo_sqlite zip \
+    && apt-get install -y --no-install-recommends libicu-dev libsqlite3-dev libzip-dev libpng-dev libjpeg62-turbo-dev libwebp-dev unzip \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-install intl pdo_mysql pdo_sqlite zip gd \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 

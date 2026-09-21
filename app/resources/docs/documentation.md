@@ -18,6 +18,14 @@ md-notes es un espacio privado para guardar apuntes, ideas y documentación en a
 - Puedes **anclar** archivos y carpetas. Aparecerán con una chincheta en el panel lateral.
 - Haz clic derecho sobre un archivo para renombrarlo, descargarlo, compartirlo, consultar versiones o abrir sus propiedades.
 
+En el móvil, abre **Notas** y pulsa los tres puntos junto al archivo o carpeta para acceder al mismo menú.
+
+## Exportar a PDF
+
+Selecciona **Exportar a PDF** en el menú contextual de una nota. Se descargará un PDF con el nombre de la nota, su formato Markdown y las imágenes adjuntas. Si estás editando esa nota, se guardarán primero los cambios. Exportar otra nota no cambia el documento abierto.
+
+Las imágenes alojadas en páginas externas no se incluyen en el PDF; adjúntalas a la nota si quieres que aparezcan. Los demás archivos adjuntos se mantienen como enlaces.
+
 ## Buscar notas
 
 Puedes buscar por título o contenido con **Buscar notas** en el panel lateral o con **Ctrl+K** (**⌘K** en Mac). Escribe al menos dos caracteres y selecciona un resultado para abrirlo. La búsqueda no incluye la papelera ni versiones anteriores.
@@ -59,6 +67,8 @@ El historial se abre desde el menú contextual de cada archivo `.md`.
 
 Desde el menú contextual de una nota selecciona **Compartir enlace**. Puedes crear enlaces con duración de 1 hora, 24 horas, 7 días o sin caducidad.
 
+Los enlaces nuevos tienen un identificador de seis caracteres, con números y letras mayúsculas y minúsculas, evitando caracteres confusos. Respeta las mayúsculas al copiarlo. Los enlaces anteriores siguen funcionando. Cualquier persona que tenga el enlace puede abrir la nota: utiliza una caducidad si no necesitas mantener el acceso.
+
 Los enlaces se pueden gestionar desde **Compartidos** en el menú de perfil: allí es posible cambiar su duración o revocarlos. Una nota compartida se abre sin iniciar sesión y muestra los adjuntos que contiene.
 
 ## Papelera y almacenamiento
@@ -70,6 +80,8 @@ Cada cuenta incluye 100 MB para notas, imágenes, adjuntos y versiones. El indic
 ## Cuenta y privacidad
 
 En **Configuración del perfil** puedes cambiar tu nombre, solicitar un código para cambiar la contraseña, descargar una exportación de tus datos y borrar la cuenta. La exportación se envía por correo mediante un enlace privado y puede solicitarse una vez al día.
+
+Cambiar la contraseña desde el perfil cierra las sesiones de los demás dispositivos. Restablecerla desde «Contraseña olvidada» cierra todas las sesiones anteriores.
 
 Cada cuenta tiene su propio espacio de archivos. Las notas y adjuntos de una cuenta no son accesibles por las demás. Los enlaces compartidos son la única forma de dar acceso público a una nota concreta.
 

@@ -90,11 +90,15 @@ class NotesTest extends TestCase
             'type' => 'folder', 'name' => 'Clase', 'path' => 'Clase', 'collapsed' => true, 'pinned' => false,
             'children' => [['type' => 'note', 'name' => 'Lectura', 'path' => 'Clase/Lectura.md', 'pinned' => false]],
         ]]);
+        $spaces->allows('root')->andReturn($this->mediaPath.'/'.$user->id);
         $this->app->instance(NoteSpace::class, $spaces);
 
         $this->actingAs($user)->get(route('notes.show', ['path' => 'Clase/Lectura.md']))
             ->assertOk()
             ->assertSee('id="editor-layout" class="editor-layout is-reading"', false)
+            ->assertSee('autocomplete="off" data-create-form data-create-kind="folder"', false)
+            ->assertSee('autocomplete="off" data-create-form data-create-kind="note"', false)
+            ->assertSee('id="rename-name" name="name" required maxlength="80" autocomplete="off"', false)
             ->assertSee('<div class="preview-document">', false)
             ->assertSee(__('ui.edit'))
             ->assertSee('<h1>Lectura</h1>', false)
@@ -103,6 +107,116 @@ class NotesTest extends TestCase
             ->assertSee('<details class="tree-folder"  open', false)
             ->assertSee('data-context-trigger', false)
             ->assertSee('assets/md-notes-workspace.css', false);
+    }
+
+    public function test_invalid_names_return_field_errors_without_creating_notes_or_folders(): void
+    {
+        $user = User::factory()->create();
+        $spaces = new NoteSpace($this->mediaPath);
+        $this->app->instance(NoteSpace::class, $spaces);
+
+        foreach (['folders.store', 'notes.store'] as $route) {
+            $this->withSession(['_token' => 'test-token'])
+                ->withHeader('X-CSRF-TOKEN', 'test-token')
+                ->actingAs($user)->postJson(route($route), [
+                    '_token' => 'test-token',
+                    'parent' => '',
+                    'name' => "27-\n  08",
+                ])->assertUnprocessable()
+                ->assertJsonPath('errors.name.0', __('ui.invalid_item_name'));
+        }
+
+        $this->assertSame([], $spaces->tree($user));
+    }
+
+    public function test_ajax_creation_returns_the_updated_tree_and_new_note_url(): void
+    {
+        $user = User::factory()->create();
+        $spaces = new NoteSpace($this->mediaPath);
+        $this->app->instance(NoteSpace::class, $spaces);
+
+        $folderResponse = $this->withSession(['_token' => 'test-token'])
+            ->withHeader('X-CSRF-TOKEN', 'test-token')
+            ->actingAs($user)->postJson(route('folders.store'), [
+                '_token' => 'test-token',
+                'parent' => '',
+                'name' => 'Proyecto',
+                'active_path' => '',
+            ])->assertCreated()
+            ->assertJsonPath('message', __('ui.folder_created'))
+            ->assertJsonStructure(['tree', 'parentOptions']);
+        $this->assertStringContainsString('data-parent-value="Proyecto"', $folderResponse->json('parentOptions'));
+
+        $this->withSession(['_token' => 'test-token'])
+            ->withHeader('X-CSRF-TOKEN', 'test-token')
+            ->actingAs($user)->postJson(route('notes.store'), [
+                '_token' => 'test-token',
+                'parent' => 'Proyecto',
+                'name' => 'Guía',
+            ])->assertCreated()
+            ->assertJsonPath('path', 'Proyecto/Guía.md')
+            ->assertJsonPath('url', route('notes.show', ['path' => 'Proyecto/Guía.md']))
+            ->assertJsonPath('message', __('ui.note_created'))
+            ->assertJsonStructure(['tree']);
+
+        $this->assertFileExists($spaces->root($user).'/Proyecto/Guía.md');
+        $this->assertDatabaseHas('note_versions', [
+            'user_id' => $user->id,
+            'path' => 'Proyecto/Guía.md',
+        ]);
+    }
+
+    public function test_the_reader_lists_only_its_referenced_attachments_in_two_column_cards(): void
+    {
+        $user = User::factory()->create();
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+        $spaces = $this->app->make(NoteSpace::class);
+        $path = $spaces->createNote($user, '', 'Adjuntos');
+
+        $pdf = $this->withSession(['_token' => 'test-token'])
+            ->actingAs($user)
+            ->post(route('media.store'), [
+                '_token' => 'test-token',
+                'file' => UploadedFile::fake()->createWithContent('temario.pdf', '%PDF-1.4 test document'),
+            ])
+            ->assertOk();
+        $image = $this->withSession(['_token' => 'test-token'])
+            ->actingAs($user)
+            ->post(route('media.store'), [
+                '_token' => 'test-token',
+                'file' => UploadedFile::fake()->create('esquema.jpg', 1, 'image/jpeg'),
+            ])
+            ->assertOk();
+        $unreferenced = $this->withSession(['_token' => 'test-token'])
+            ->actingAs($user)
+            ->post(route('media.store'), [
+                '_token' => 'test-token',
+                'file' => UploadedFile::fake()->create('privado.zip', 1, 'application/zip'),
+            ])
+            ->assertOk();
+
+        $spaces->write($user, $path, implode("\n", [
+            '# Adjuntos',
+            '[Temario]('.$pdf->json('url').')',
+            '![Esquema]('.$image->json('url').')',
+            '[Temario repetido]('.$pdf->json('url').')',
+            '[Externo](https://example.com/manual.zip)',
+        ]));
+
+        $response = $this->actingAs($user)->get(route('notes.show', ['path' => $path]));
+
+        $response->assertOk()
+            ->assertSee('class="note-attachments-grid"', false)
+            ->assertSee('temario.pdf')
+            ->assertSee('esquema.jpg')
+            ->assertSee('download="temario.pdf"', false)
+            ->assertSee('download="esquema.jpg"', false)
+            ->assertSee('data-pdf-preview-url="'.route('media.preview', ['filename' => basename((string) parse_url($pdf->json('url'), PHP_URL_PATH))]).'"', false)
+            ->assertSee(__('ui.view_pdf'))
+            ->assertSee('id="pdf-viewer"', false)
+            ->assertDontSee('privado.zip')
+            ->assertDontSee(basename((string) parse_url($unreferenced->json('url'), PHP_URL_PATH)));
+        $this->assertSame(1, substr_count($response->getContent(), 'download="temario.pdf"'));
     }
 
     public function test_an_authenticated_user_can_refresh_their_storage_quota(): void
@@ -392,6 +506,76 @@ class NotesTest extends TestCase
         $this->actingAs($user)->get($response->json('url'))->assertOk();
     }
 
+    public function test_uploaded_attachments_use_the_original_name_when_downloaded(): void
+    {
+        $user = User::factory()->create();
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+
+        $image = UploadedFile::fake()->createWithContent('horario de clase.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLJDQAAAABJRU5ErkJggg=='));
+        $document = UploadedFile::fake()->createWithContent('apuntes de clase.pdf', '%PDF-1.4 test');
+        foreach ([$image, $document] as $file) {
+            $response = $this->withSession(['_token' => 'test-token'])
+                ->actingAs($user)
+                ->post(route('media.store'), ['_token' => 'test-token', 'file' => $file]);
+            $response->assertOk();
+
+            $download = $this->actingAs($user)->get($response->json('url'));
+            $contentDisposition = (string) $download->headers->get('Content-Disposition');
+            $this->assertStringContainsString($file->getClientOriginalName(), $contentDisposition);
+            $this->assertStringContainsString($file->getMimeType() === 'image/png' ? 'inline' : 'attachment', $contentDisposition);
+        }
+    }
+
+    public function test_a_pdf_can_be_previewed_inline_only_by_its_owner(): void
+    {
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+
+        $upload = $this->withSession(['_token' => 'test-token'])
+            ->actingAs($owner)
+            ->post(route('media.store'), [
+                '_token' => 'test-token',
+                'file' => UploadedFile::fake()->createWithContent('manual privado.pdf', '%PDF-1.4 private document'),
+            ])
+            ->assertOk();
+
+        $filename = basename((string) parse_url($upload->json('url'), PHP_URL_PATH));
+        $previewUrl = route('media.preview', ['filename' => $filename]);
+        $preview = $this->actingAs($owner)->get($previewUrl);
+
+        $preview->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+        $this->assertStringContainsString('inline', (string) $preview->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('manual privado.pdf', (string) $preview->headers->get('Content-Disposition'));
+        $this->assertStringContainsString("frame-ancestors 'self'", (string) $preview->headers->get('Content-Security-Policy'));
+
+        $this->actingAs($otherUser)->get($previewUrl)->assertNotFound();
+        auth()->logout();
+        $this->get($previewUrl)->assertRedirect(route('login'));
+    }
+
+    public function test_a_non_pdf_attachment_cannot_be_opened_in_the_pdf_viewer(): void
+    {
+        $user = User::factory()->create();
+        $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
+
+        $upload = $this->withSession(['_token' => 'test-token'])
+            ->actingAs($user)
+            ->post(route('media.store'), [
+                '_token' => 'test-token',
+                'file' => UploadedFile::fake()->createWithContent('notas.txt', 'No es un PDF'),
+            ])
+            ->assertOk();
+
+        $filename = basename((string) parse_url($upload->json('url'), PHP_URL_PATH));
+        $this->actingAs($user)
+            ->get(route('media.preview', ['filename' => $filename]))
+            ->assertNotFound();
+    }
+
     public function test_an_authenticated_user_can_open_an_attachment_using_the_legacy_media_url(): void
     {
         $user = User::query()->create([
@@ -424,6 +608,7 @@ class NotesTest extends TestCase
         $spaces = Mockery::mock(NoteSpace::class);
         $spaces->shouldReceive('read')->once()->andReturn("![](https://md.mateo.ovh/media/{$filename})");
         $spaces->shouldReceive('tree')->once()->andReturn([]);
+        $spaces->allows('root')->andReturn($this->mediaPath.'/'.$user->id);
         $this->app->instance(NoteSpace::class, $spaces);
 
         $this->actingAs($user)

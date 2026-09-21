@@ -18,6 +18,14 @@ md-notes is a private space for keeping class notes, ideas, and documentation in
 - You can **pin** files and folders. They appear with a pin in the sidebar.
 - Right-click a file to rename it, download it, share it, view its history, or open its properties.
 
+On mobile, open **Notes** and tap the three dots next to a file or folder to access the same menu.
+
+## Export as PDF
+
+Select **Export as PDF** from a note’s context menu. The download keeps the note’s name, Markdown formatting, and attached images. If you are editing that note, your changes are saved first. Exporting another note does not switch the open document.
+
+Images hosted on external websites are not included in the PDF; attach them to the note to include them. Other file attachments remain as links.
+
 ## Search notes
 
 Search titles and contents with **Search notes** in the sidebar or **Ctrl+K** (**⌘K** on Mac). Enter at least two characters and select a result to open it. Search does not include the trash or previous versions.
@@ -57,6 +65,8 @@ Open history from the context menu of any `.md` file.
 
 ## Sharing notes
 
+New links use a six-character identifier with numbers and uppercase and lowercase letters, excluding ambiguous characters. Links are case-sensitive, and existing links remain valid. Anyone with the link can open the note; choose an expiry when permanent access is not needed.
+
 Select **Share link** from a note’s context menu. You can create links for one hour, 24 hours, 7 days, or with no expiry.
 
 Manage links in **Shared** from the profile menu: you can change their duration or revoke them. A shared note opens without a sign-in and includes the attachments it references.
@@ -70,6 +80,8 @@ Every account includes 100 MB for notes, images, attachments, and versions. The 
 ## Account and privacy
 
 In **Profile settings**, you can change your name, request a code to change your password, download an export of your data, and delete your account. The export is sent by email through a private link and can be requested once per day.
+
+Changing your password in your profile signs out your other devices. Resetting it through “Forgot password” signs out all previous sessions.
 
 Each account has its own file space. Notes and attachments in one account cannot be accessed by another. Shared links are the only way to grant public access to a specific note.
 

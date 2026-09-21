@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\SharedNote;
 use App\Models\User;
 use App\Services\NoteSpace;
+use App\Services\ShareTokens;
 use Illuminate\Support\Facades\File;
 use Mockery;
 use Tests\TestCase;
@@ -52,8 +53,9 @@ class ShareTest extends TestCase
         $response->assertRedirect(route('notes.show', ['path' => 'Otra.md']));
         $share = SharedNote::query()->sole();
         $this->assertSame($user->id, $share->user_id);
-        $this->assertMatchesRegularExpression('/^[0123456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/', $share->token);
+        $this->assertMatchesRegularExpression('/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz]{6}$/', $share->token);
         $this->assertTrue($share->expires_at->isFuture());
+        $response->assertSessionHas('share_url', app(ShareTokens::class)->publicUrl($share->token));
     }
 
     public function test_a_share_link_renders_the_note_without_authentication(): void
@@ -129,6 +131,7 @@ class ShareTest extends TestCase
         $ownerMedia = $spaces->root($owner).'/.md-notes-media';
         File::ensureDirectoryExists($ownerMedia);
         File::put($ownerMedia.'/'.$filename, 'shared image');
+        File::put($ownerMedia.'/.name-'.$filename, 'horario de clase.png');
         $share = SharedNote::query()->create([
             'user_id' => $owner->id,
             'path' => 'Clase/Apuntes.md',
@@ -150,7 +153,10 @@ class ShareTest extends TestCase
         preg_match('/app\/media\/([a-z0-9]{24}\.png)/', $copied, $matches);
         $this->assertNotSame($filename, $matches[1]);
         $this->assertFileExists($spaces->root($recipient).'/.md-notes-media/'.$matches[1]);
-        $this->actingAs($recipient)->get(route('media.show', ['filename' => $matches[1]]))->assertOk();
+        $recipientResponse = $this->actingAs($recipient)->get(route('media.show', ['filename' => $matches[1]]))->assertOk();
+        $this->assertStringContainsString('horario de clase.png', (string) $recipientResponse->headers->get('Content-Disposition'));
+        $sharedResponse = $this->get(route('shares.media', ['token' => $share->token, 'filename' => $filename]))->assertOk();
+        $this->assertStringContainsString('horario de clase.png', (string) $sharedResponse->headers->get('Content-Disposition'));
         $this->assertDatabaseHas('note_versions', ['user_id' => $recipient->id, 'path' => 'Apuntes (copy).md']);
     }
 

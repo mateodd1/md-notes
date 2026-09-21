@@ -34,10 +34,12 @@ class NoteMedia
         $extension = $this->extensionFor($file);
         $directory = $this->directory($user);
         $filename = Str::lower(Str::random(24)).'.'.$extension;
+        $originalName = $this->sanitizeOriginalName($file->getClientOriginalName(), $filename);
 
         try {
             $this->markPending($directory, $filename);
             $file->move($directory, $filename);
+            $this->writeOriginalName($directory, $filename, $originalName);
         } catch (\Throwable $exception) {
             $this->removeCopied($user, [$filename]);
             throw new RuntimeException(__('ui.cannot_save_attachment'), previous: $exception);
@@ -60,9 +62,22 @@ class NoteMedia
         return $path;
     }
 
+    public function downloadName(User $user, string $filename): string
+    {
+        $path = $this->path($user, $filename);
+        $metadata = @file_get_contents($this->namePath(dirname($path), $filename));
+
+        return $this->sanitizeOriginalName(is_string($metadata) ? $metadata : '', $filename);
+    }
+
     public function isImagePath(string $path): bool
     {
         return array_key_exists((string) mime_content_type($path), self::EXTENSIONS);
+    }
+
+    public function isPdfPath(string $path): bool
+    {
+        return mime_content_type($path) === 'application/pdf';
     }
 
     /** @return array{attachments_bytes: int, attachments_count: int} */
@@ -86,6 +101,38 @@ class NoteMedia
         }
 
         return ['attachments_bytes' => $bytes, 'attachments_count' => $count];
+    }
+
+    /**
+     * @return array<int, array{filename: string, name: string, extension: string, bytes: int, is_pdf: bool}>
+     */
+    public function attachmentList(User $user, string $content): array
+    {
+        $directory = $this->spaces->root($user).'/.md-notes-media';
+        if (! is_dir($directory)) {
+            return [];
+        }
+
+        $attachments = [];
+        foreach (array_unique($this->filenamesIn($content)) as $filename) {
+            $path = $directory.'/'.$filename;
+            if (! is_file($path) || is_link($path)) {
+                continue;
+            }
+
+            $name = $this->downloadName($user, $filename);
+            $extension = Str::lower(pathinfo($name, PATHINFO_EXTENSION));
+
+            $attachments[] = [
+                'filename' => $filename,
+                'name' => $name,
+                'extension' => $extension !== '' ? $extension : Str::lower(pathinfo($filename, PATHINFO_EXTENSION)),
+                'bytes' => (int) filesize($path),
+                'is_pdf' => $this->isPdfPath($path),
+            ];
+        }
+
+        return $attachments;
     }
 
     public function pruneUnreferenced(User $user): int
@@ -160,6 +207,7 @@ class NoteMedia
                 'source' => $sourcePath,
                 'destination' => $recipientDirectory.'/'.$recipientFilename,
                 'filename' => $recipientFilename,
+                'original_name' => $this->downloadName($source, $filename),
             ];
             $bytes += (int) filesize($sourcePath);
         }
@@ -174,6 +222,7 @@ class NoteMedia
                 if (! copy($file['source'], $file['destination'])) {
                     throw new RuntimeException(__('ui.could_not_copy_shared_note'));
                 }
+                $this->writeOriginalName($recipientDirectory, $file['filename'], $file['original_name']);
             }
         } catch (\Throwable $exception) {
             $this->removeCopied($recipient, array_values($copied));
@@ -197,6 +246,7 @@ class NoteMedia
                     unlink($directory.'/'.$filename);
                 }
                 $this->clearPending($directory, $filename);
+                $this->clearOriginalName($directory, $filename);
             }
         }
     }
@@ -214,6 +264,40 @@ class NoteMedia
         if (is_file($marker)) {
             unlink($marker);
         }
+    }
+
+    private function writeOriginalName(string $directory, string $filename, string $originalName): void
+    {
+        $metadata = $this->namePath($directory, $filename);
+        if (file_put_contents($metadata, $this->sanitizeOriginalName($originalName, $filename), LOCK_EX) === false
+            || ! chmod($metadata, 0660)) {
+            throw new RuntimeException(__('ui.cannot_save_attachment'));
+        }
+    }
+
+    private function clearOriginalName(string $directory, string $filename): void
+    {
+        $metadata = $this->namePath($directory, $filename);
+        if (is_file($metadata)) {
+            unlink($metadata);
+        }
+    }
+
+    private function namePath(string $directory, string $filename): string
+    {
+        return $directory.'/.name-'.$filename;
+    }
+
+    private function sanitizeOriginalName(?string $name, string $fallback): string
+    {
+        $candidate = str_replace('\\', '/', trim((string) $name));
+        $candidate = basename($candidate);
+        $candidate = preg_replace('/[\x00-\x1F\x7F]/u', '', $candidate) ?? '';
+        $candidate = trim($candidate);
+
+        return $candidate !== '' && ! in_array($candidate, ['.', '..'], true)
+            ? mb_substr($candidate, 0, 180)
+            : $fallback;
     }
 
     /** @return array<string, true> */
