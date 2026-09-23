@@ -75,14 +75,17 @@ class ShareTest extends TestCase
         $spaces->shouldReceive('read')->once()->withArgs(fn (User $owner, string $path): bool => $owner->is($user) && $path === 'Clase/Apuntes.md')->andReturn("# Apuntes\n\nPrimera línea\nSegunda línea");
         $this->app->instance(NoteSpace::class, $spaces);
 
-        $this->get(route('shares.show', ['token' => 'A2BCD']))
+        $response = $this->get(route('shares.show', ['token' => 'A2BCD']))
             ->assertOk()
             ->assertSee('Apuntes')
+            ->assertDontSee('Clase/Apuntes.md')
             ->assertSee("Primera línea<br>\nSegunda línea", false)
             ->assertSee(__('ui.shared_note'))
             ->assertSee('◐ '.__('ui.theme'))
             ->assertSee('padding:26px clamp(18px,12vw,260px)', false)
             ->assertSee('max-width:1440px', false);
+
+        $this->assertSame(1, substr_count($response->getContent(), '<h1>Apuntes</h1>'));
     }
 
     public function test_a_share_rewrites_media_urls_from_before_and_after_the_app_prefix(): void

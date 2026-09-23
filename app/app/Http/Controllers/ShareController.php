@@ -106,16 +106,18 @@ class ShareController extends Controller
     {
         $share = $this->activeShare($token);
         $content = $this->spaces->read($share->user, $share->path);
+        $title = Str::beforeLast(basename($share->path), '.');
+        $rendered = Str::markdown($this->mediaUrls->forShare($share, $content), [
+            'html_input' => 'strip',
+            'allow_unsafe_links' => false,
+            'renderer' => ['soft_break' => "<br>\n"],
+        ]);
 
         return view('shares.show', [
             'share' => $share,
-            'title' => Str::beforeLast(basename($share->path), '.'),
-            'path' => $share->path,
-            'rendered' => Str::markdown($this->mediaUrls->forShare($share, $content), [
-                'html_input' => 'strip',
-                'allow_unsafe_links' => false,
-                'renderer' => ['soft_break' => "<br>\n"],
-            ]),
+            'title' => $title,
+            'rendered' => $rendered,
+            'showFileTitle' => preg_match('/<h1(?:\s[^>]*)?>/i', $rendered) !== 1,
         ]);
     }
 
