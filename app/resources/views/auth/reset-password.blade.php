@@ -3,7 +3,7 @@
 @section('body')
 <main class="auth-shell">
     <section class="auth-card">
-        <div class="auth-brand">✦ md-notes</div>
+        <div class="auth-brand"><x-icon name="spark" class="brand-icon" />md-notes</div>
         <h1>{{ __('ui.set_new_password') }}</h1>
         <p>{{ __('ui.new_password_help') }}</p>
         @if ($errors->any()) <div class="errors"><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div> @endif

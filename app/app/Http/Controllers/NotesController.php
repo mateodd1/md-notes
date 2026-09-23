@@ -410,7 +410,10 @@ class NotesController extends Controller
             return back()->withErrors(['trash' => $exception->getMessage()]);
         }
 
-        return redirect()->route('notes.index')->with('status', __('ui.trash_restored'));
+        $route = $entry['type'] === 'note' ? 'notes.show' : 'notes.index';
+        $parameters = $entry['type'] === 'note' ? ['path' => $entry['original_path']] : [];
+
+        return redirect()->route($route, $parameters)->with('status', __('ui.trash_restored'));
     }
 
     public function destroyTrash(Request $request, string $id): RedirectResponse

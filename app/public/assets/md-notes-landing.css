@@ -9,7 +9,6 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:5px; }
 .skip-link { position:fixed; top:-100px; left:20px; z-index:10; padding:8px 16px; background:var(--paper); border:1px solid var(--accent); }
 .skip-link:focus { top:12px; }
 .brand { display:inline-flex; align-items:center; gap:8px; font-size:18px; font-weight:750; letter-spacing:-.5px; white-space:nowrap; }
-.spark { color:var(--accent); font-size:23px; line-height:1; }
 .site-header { display:flex; align-items:center; justify-content:space-between; gap:24px; min-height:92px; border-bottom:1px solid var(--line); }
 .site-header nav { display:flex; align-items:center; gap:28px; font-size:14px; }
 .site-header nav > a:not(.button),.site-footer nav a { color:var(--muted); }
@@ -30,7 +29,6 @@ h1 em { color:var(--accent); font-style:normal; }
 .app-preview { overflow:hidden; background:var(--paper); border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 20px #0c28320a; }
 .preview-topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 18px; border-bottom:1px solid var(--line); font-size:12px; font-weight:650; }
 .preview-topbar > span:first-child { display:flex; align-items:center; gap:7px; }
-.preview-topbar .spark { font-size:17px; }
 .preview-state { color:var(--muted); font-size:11px; font-weight:400; }
 .preview-body { display:grid; grid-template-columns:151px minmax(0,1fr); }
 .preview-tree { padding:20px 9px; background:var(--sidebar); border-right:1px solid var(--line); color:var(--muted); font-size:11px; }
@@ -79,7 +77,6 @@ kbd { display:inline-block; padding:0 4px; border:1px solid var(--line); border-
 .start-section .button { flex-shrink:0; }
 .site-footer { display:flex; align-items:center; justify-content:space-between; gap:24px; padding-block:28px 32px; border-top:1px solid var(--line); }
 .site-footer .brand { font-size:15px; }
-.site-footer .spark { font-size:19px; }
 .site-footer p { margin:7px 0 0; color:var(--muted); font-size:12px; }
 .site-footer nav { display:flex; gap:24px; font-size:13px; }
 @media(max-width:1000px) { .hero { gap:32px; grid-template-columns:.8fr 1.2fr; }.preview-body { grid-template-columns:126px minmax(0,1fr); }.preview-tree { font-size:10px; padding-inline:6px; }.preview-tree .tree-indent { padding-left:12px; }.preview-tree .tree-note { padding-left:24px; }.preview-note { padding-inline:18px; }.files-section { gap:56px; } }

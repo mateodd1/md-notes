@@ -3,7 +3,7 @@
 @section('body')
 <main class="auth-shell">
     <section class="auth-card">
-        <div class="auth-brand">✦ md-notes</div>
+        <div class="auth-brand"><x-icon name="spark" class="brand-icon" />md-notes</div>
         <h1>{{ __('ui.reset_password') }}</h1>
         <p>{{ __('ui.reset_password_help') }}</p>
         @if (session('status')) <div class="flash">{{ session('status') }}</div> @endif

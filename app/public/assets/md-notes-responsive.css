@@ -7,10 +7,10 @@
 .modal .parent-options { position:static; max-height:min(225px,30dvh); }
 .profile-popover { max-height:calc(var(--visible-height,100dvh) - 84px); overflow-y:auto; overscroll-behavior:contain; }
 .context-menu { max-width:calc(100vw - 16px); max-height:calc(var(--visible-height,100dvh) - 16px); overflow-y:auto; overscroll-behavior:contain; }
-.preview-document,.history-preview,.shared-note,.shared-path,.shared-content,.docs-content { min-width:0; overflow-wrap:anywhere; }
-.preview-pane :not(pre) > code,.history-preview :not(pre) > code,.shared-content :not(pre) > code { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
-.preview-pane table,.history-preview table,.shared-content table,.docs-content table { display:block; max-width:100%; overflow-x:auto; border-collapse:collapse; }
-.history-preview img { max-width:100%; height:auto; }
+.markdown-body,.preview-document,.history-preview,.shared-note,.shared-path,.shared-content,.docs-content,.version-content,.trash-note-content,.trash-preview-content { min-width:0; overflow-wrap:anywhere; }
+.markdown-body :not(pre) > code,.preview-pane :not(pre) > code,.history-preview :not(pre) > code,.shared-content :not(pre) > code,.version-content :not(pre) > code,.trash-note-content :not(pre) > code,.trash-preview-content :not(pre) > code { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+.markdown-body table,.preview-pane table,.history-preview table,.shared-content table,.docs-content table,.version-content table,.trash-note-content table,.trash-preview-content table { display:block; max-width:100%; overflow-x:auto; border-collapse:collapse; }
+.markdown-body img,.history-preview img,.version-content img,.trash-note-content img,.trash-preview-content img { max-width:100%; height:auto; }
 .properties-list { grid-template-columns:minmax(0,1fr); gap:4px; }
 .properties-list dd { text-align:left; margin-bottom:10px; overflow-wrap:anywhere; }
 .history-entry { flex-wrap:wrap; }
@@ -20,17 +20,7 @@
 @media (max-width:780px), (max-width:1024px) and (pointer:coarse) {
     .workspace { padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
     .sidebar { bottom:auto; height:var(--visible-height,100dvh); padding-block:env(safe-area-inset-top) env(safe-area-inset-bottom); padding-left:env(safe-area-inset-left); }
-    .toolbar { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:8px 10px; padding:10px 12px; }
-    #mobile-notes-toggle { grid-column:1; grid-row:1; min-height:44px; }
-    .toolbar > div:first-of-type { grid-column:2; grid-row:1; }
-    .toolbar-actions { display:contents; }
-    .toolbar-actions > .profile-menu { grid-column:3; grid-row:1; justify-self:end; }
-    .profile-menu summary { min-width:44px; min-height:44px; justify-content:center; }
-    .toolbar-actions > .danger { display:none; }
-    #edit-note { grid-column:2 / -1; grid-row:2; justify-self:end; }
-    #read-note { grid-column:2; grid-row:2; justify-self:end; }
-    #save-note { grid-column:3; grid-row:2; }
-    #save-state { grid-column:1; grid-row:2; max-width:95px; font-size:12px; overflow-wrap:anywhere; }
+    /* Mobile toolbar placement is owned by md-notes-google.css. */
     .toolbar-actions .button { min-height:44px; padding:9px 11px; }
     .profile-item,.context-menu button,.parent-option { min-height:44px; }
     .tree-note,.tree-folder summary { min-height:44px; }

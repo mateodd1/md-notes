@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'open_profile_menu' => 'Open profile menu',
+    'color_blue' => 'Blue',
+    'color_violet' => 'Violet',
+    'color_pink' => 'Pink',
+    'color_orange' => 'Orange',
+    'color_green' => 'Green',
+    'color_grey' => 'Grey',
     'too_many_requests' => 'Too many requests. Please try again in :seconds seconds.',
     'search_notes' => 'Search notes',
     'search_placeholder' => 'Search by title or content…',
@@ -106,7 +113,6 @@ return [
     'trash_preview' => 'Note preview',
     'trash_preview_loading' => 'Loading note…',
     'trash_preview_error' => 'Could not open the note. Please try again.',
-    'trash_preview_retry' => 'Try again',
     'restore_from_trash' => 'Restore',
     'trash_restored' => 'Item restored.',
     'delete_permanently' => 'Delete permanently',
@@ -119,7 +125,11 @@ return [
     'no_shared_notes' => 'You have not shared any notes yet',
     'shared_context_help' => 'Open a note’s context menu and choose “Share link”.',
     'active' => 'Active',
+    'active_links' => 'Active links',
     'expired' => 'Expired',
+    'expired_links' => 'Expired links',
+    'expired_links_help' => 'Show links that have already expired.',
+    'expired_links_count' => '{1} :count expired link|[2,*] :count expired links',
     'expires' => 'Expires',
     'expired_on' => 'Expired',
     'does_not_expire' => 'Does not expire',

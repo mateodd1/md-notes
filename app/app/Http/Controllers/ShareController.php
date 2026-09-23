@@ -76,6 +76,8 @@ class ShareController extends Controller
 
         return view('shares.index', [
             'shares' => $shares,
+            'activeShares' => $shares->reject(fn (SharedNote $share): bool => $share->expires_at?->isPast() ?? false),
+            'expiredShares' => $shares->filter(fn (SharedNote $share): bool => $share->expires_at?->isPast() ?? false),
             'shareUrls' => $shares->mapWithKeys(fn (SharedNote $share): array => [
                 $share->getKey() => $this->tokens->publicUrl($share->token),
             ]),

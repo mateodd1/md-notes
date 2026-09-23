@@ -7,7 +7,6 @@
     const body = dialog.querySelector('.trash-preview-body');
     const content = dialog.querySelector('.trash-preview-content');
     const status = dialog.querySelector('.trash-preview-status');
-    const retry = dialog.querySelector('[data-trash-preview-retry]');
     let request = null;
     let opener = null;
     let url = '';
@@ -25,7 +24,6 @@
         request = pending;
         content.replaceChildren();
         content.hidden = true;
-        retry.hidden = true;
         status.hidden = false;
         status.classList.remove('is-error');
         status.textContent = dialog.dataset.loading;
@@ -55,7 +53,6 @@
             if (request !== pending || error.name === 'AbortError' || !dialog.open) return;
             status.textContent = dialog.dataset.error;
             status.classList.add('is-error');
-            retry.hidden = false;
         } finally {
             if (request === pending) {
                 body.setAttribute('aria-busy', 'false');
@@ -96,7 +93,6 @@
     });
 
     dialog.querySelector('[data-trash-preview-close]').addEventListener('click', close);
-    retry.addEventListener('click', load);
     dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
     dialog.addEventListener('close', () => {
         if (dialog.open) return;

@@ -16,6 +16,7 @@ class ExampleTest extends TestCase
 
         $response->assertOk()
             ->assertSee('md-notes')
+            ->assertSee('assets/md-notes-google.css', false)
             ->assertSee('<link rel="canonical" href="'.route('home').'">', false)
             ->assertSee('<meta property="og:title"', false)
             ->assertSee('<meta name="twitter:card" content="summary">', false)

@@ -413,7 +413,8 @@ class NotesTest extends TestCase
             ->assertSee('<h1>Papelera</h1>', false)
             ->assertDontSee('id="editor"', false);
         $this->withSession(['_token' => 'test-token'])->actingAs($user)->post(route('trash.restore', ['id' => $entry['id']]), ['_token' => 'test-token'])
-            ->assertRedirect(route('notes.index'));
+            ->assertRedirect(route('notes.show', ['path' => $path]))
+            ->assertSessionHas('status', __('ui.trash_restored'));
 
         $this->assertSame("# Papelera\n\n", $spaces->read($user, $path));
         $this->assertDatabaseHas('note_versions', ['user_id' => $user->id, 'path' => $path]);

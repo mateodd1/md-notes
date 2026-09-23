@@ -1,5 +1,5 @@
 body.trash-preview-open { overflow:hidden; }
-.trash-preview { width:min(1040px,calc(100% - 36px)); max-width:none; max-height:calc(100vh - 36px); max-height:calc(100dvh - 36px); margin:auto; padding:0; overflow:hidden; border:1px solid var(--line); border-radius:15px; background:var(--paper); color:var(--ink); box-shadow:0 20px 60px #11182740; }
+.trash-preview { width:min(1180px,calc(100% - 36px)); max-width:none; max-height:calc(100vh - 36px); max-height:calc(100dvh - 36px); margin:auto; padding:0; overflow:hidden; border:1px solid var(--line); border-radius:15px; background:var(--paper); color:var(--ink); box-shadow:0 20px 60px #11182740; }
 .trash-preview[open] { display:flex; flex-direction:column; animation:md-notes-modal-card-in .22s cubic-bezier(.2,.8,.2,1) both; }
 .trash-preview::backdrop { background:#10182880; animation:md-notes-modal-backdrop-in .18s ease-out both; }
 .trash-preview.is-closing { animation:md-notes-modal-card-out .16s ease-in both; }

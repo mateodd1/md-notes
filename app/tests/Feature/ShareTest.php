@@ -81,9 +81,10 @@ class ShareTest extends TestCase
             ->assertDontSee('Clase/Apuntes.md')
             ->assertSee("Primera línea<br>\nSegunda línea", false)
             ->assertSee(__('ui.shared_note'))
-            ->assertSee('◐ '.__('ui.theme'))
-            ->assertSee('padding:26px clamp(18px,12vw,260px)', false)
-            ->assertSee('max-width:1440px', false);
+            ->assertSee(__('ui.theme'))
+            ->assertSee('class="icon theme-menu-icon"', false)
+            ->assertSee('assets/md-notes-pages.css', false)
+            ->assertSee('class="shared-content markdown-body"', false);
 
         $this->assertSame(1, substr_count($response->getContent(), '<h1>Apuntes</h1>'));
     }
@@ -226,5 +227,42 @@ class ShareTest extends TestCase
             ->delete(route('shares.destroy', ['share' => $otherShare]), ['_token' => 'test-token'])
             ->assertNotFound();
         $this->assertDatabaseHas('shared_notes', ['id' => $otherShare->id]);
+    }
+
+    public function test_expired_links_are_collapsed_below_active_links(): void
+    {
+        $owner = User::factory()->create();
+        SharedNote::query()->create([
+            'user_id' => $owner->id,
+            'path' => 'Activa.md',
+            'token' => 'A2BCDE',
+            'expires_at' => now()->addHour(),
+        ]);
+        SharedNote::query()->create([
+            'user_id' => $owner->id,
+            'path' => 'Caducada.md',
+            'token' => 'F3GHJK',
+            'expires_at' => now()->subHour(),
+        ]);
+
+        $response = $this->actingAs($owner)
+            ->withHeader('Accept-Language', 'es')
+            ->get(route('shares.index'))
+            ->assertOk()
+            ->assertSee('Activa.md')
+            ->assertSee('Caducada.md')
+            ->assertSee(__('ui.expired_links'));
+
+        $content = $response->getContent();
+        $activePosition = strpos($content, 'Activa.md');
+        $collapsedPosition = strpos($content, '<details class="expired-shares">');
+        $expiredPosition = strpos($content, 'Caducada.md');
+
+        $this->assertIsInt($activePosition);
+        $this->assertIsInt($collapsedPosition);
+        $this->assertIsInt($expiredPosition);
+        $this->assertLessThan($collapsedPosition, $activePosition);
+        $this->assertLessThan($expiredPosition, $collapsedPosition);
+        $this->assertStringNotContainsString('<details class="expired-shares" open', $content);
     }
 }

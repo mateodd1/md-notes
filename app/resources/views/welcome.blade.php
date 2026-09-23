@@ -43,10 +43,12 @@
     ];
 @endphp
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-session-status-url="{{ route('session.status') }}">
+<html class="landing-page" lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-session-status-url="{{ route('session.status') }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f8fafd" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#131314" media="(prefers-color-scheme: dark)">
     <meta name="description" content="{{ $description }}">
     <link rel="canonical" href="{{ $canonical }}">
     <meta property="og:type" content="website">
@@ -69,16 +71,17 @@
     @include('partials.favicons')
     <script type="application/ld+json">{!! json_encode($structuredData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) !!}</script>
     <link rel="stylesheet" href="{{ asset('assets/md-notes-landing.css') }}?v={{ filemtime(public_path('assets/md-notes-landing.css')) }}">
+    <link rel="stylesheet" href="{{ asset('assets/md-notes-google.css') }}?v={{ filemtime(public_path('assets/md-notes-google.css')) }}">
     <script src="{{ asset('assets/md-notes-landing.js') }}?v={{ filemtime(public_path('assets/md-notes-landing.js')) }}" defer></script>
 </head>
 <body>
     <a class="skip-link" href="#main">{{ $es ? 'Ir al contenido' : 'Skip to content' }}</a>
     <header class="wrap site-header">
-        <a class="brand" href="{{ route('home') }}"><span class="spark" aria-hidden="true">✦</span> md-notes</a>
+        <a class="brand" href="{{ route('home') }}"><x-icon name="spark" class="brand-icon" />md-notes</a>
         <nav aria-label="{{ $es ? 'Navegación principal' : 'Main navigation' }}">
             <a class="features-link" href="#features">{{ $es ? 'Funciones' : 'Features' }}</a>
             <a class="docs-link" href="{{ route('documentation') }}">{{ $es ? 'Documentación' : 'Documentation' }}</a>
-            <a class="button secondary" href="{{ $authenticated ? route('notes.index') : route('login') }}" data-session-link data-authenticated-href="{{ route('notes.index') }}" data-authenticated-label="{{ $spaceLabel }}"><span data-session-label>{{ $authenticated ? $spaceLabel : ($es ? 'Entrar' : 'Log in') }}</span> <span aria-hidden="true">↗</span></a>
+            <a class="button secondary" href="{{ $authenticated ? route('notes.index') : route('login') }}" data-session-link data-authenticated-href="{{ route('notes.index') }}" data-authenticated-label="{{ $spaceLabel }}"><span data-session-label>{{ $authenticated ? $spaceLabel : ($es ? 'Entrar' : 'Log in') }}</span><x-icon name="external-link" class="button-icon" /></a>
         </nav>
     </header>
     <main id="main">
@@ -87,21 +90,21 @@
                 <h1 id="hero-title">{{ $es ? 'Tus ideas,' : 'Your ideas,' }}<br><em>{{ $es ? 'en orden.' : 'in order.' }}</em></h1>
                 <p class="lead">{{ $es ? 'Escribe notas, documentación y bases de conocimiento en Markdown. Organiza el contenido por proyectos o temas y trabaja desde el navegador, en el ordenador o en el móvil.' : 'Write notes, documentation, and knowledge bases in Markdown. Organise content by project or topic and work in your browser, on your computer or phone.' }}</p>
                 <div class="hero-actions">
-                    <a class="button" href="{{ $authenticated ? route('notes.index') : route('register') }}" data-session-link data-authenticated-href="{{ route('notes.index') }}" data-authenticated-label="{{ $spaceLabel }}"><span data-session-label>{{ $authenticated ? $spaceLabel : ($es ? 'Crear una cuenta' : 'Create an account') }}</span> <span aria-hidden="true">→</span></a>
+                    <a class="button" href="{{ $authenticated ? route('notes.index') : route('register') }}" data-session-link data-authenticated-href="{{ route('notes.index') }}" data-authenticated-label="{{ $spaceLabel }}"><span data-session-label>{{ $authenticated ? $spaceLabel : ($es ? 'Crear una cuenta' : 'Create an account') }}</span><x-icon name="arrow-right" class="button-icon" /></a>
                     <a class="text-link" href="#features">{{ $es ? 'Ver las funciones' : 'See the features' }}</a>
                 </div>
             </div>
             <figure class="preview">
                 <div class="app-preview" aria-label="{{ $es ? 'Ejemplo de un documento en md-notes' : 'Example of a document in md-notes' }}">
-                    <div class="preview-topbar"><span><span class="spark" aria-hidden="true">✦</span> md-notes</span><span class="preview-state">{{ $es ? 'Modo lectura' : 'Reading mode' }}</span></div>
+                    <div class="preview-topbar"><span><x-icon name="spark" class="brand-icon" />md-notes</span><span class="preview-state">{{ $es ? 'Modo lectura' : 'Reading mode' }}</span></div>
                     <div class="preview-body">
                         <aside class="preview-tree" aria-label="{{ $es ? 'Carpetas de ejemplo' : 'Example folders' }}">
                             <span class="tree-caption">{{ $es ? 'Mis notas' : 'My notes' }}</span>
                             <span>Ideas.md</span>
-                            <span class="tree-folder"><span aria-hidden="true">⌄</span> {{ $es ? 'Documentación' : 'Documentation' }}</span>
+                            <span class="tree-folder"><x-icon name="chevron-down" />{{ $es ? 'Documentación' : 'Documentation' }}</span>
                             <span class="tree-indent active">{{ $es ? 'guía.md' : 'guide.md' }}</span>
                             <span class="tree-indent">{{ $es ? 'referencia.md' : 'reference.md' }}</span>
-                            <span class="tree-folder"><span aria-hidden="true">›</span> {{ $es ? 'Proyectos' : 'Projects' }}</span>
+                            <span class="tree-folder"><x-icon name="chevron-right" />{{ $es ? 'Proyectos' : 'Projects' }}</span>
                         </aside>
                         <article class="preview-note">
                             <div class="preview-path">{{ $es ? 'Documentación / guía.md' : 'Documentation / guide.md' }}</div>
@@ -132,7 +135,7 @@
                 <span class="file-extension" aria-hidden="true">.md</span>
                 <h2 id="files-title">{{ $es ? 'Escribir en Markdown' : 'Writing in Markdown' }}</h2>
                 <p>{{ $es ? 'Las notas y documentos se guardan en archivos .md. Para dar formato al texto puedes escribir la sintaxis de Markdown o usar los botones del editor: títulos, negrita, listas y enlaces.' : 'Notes and documents are saved as .md files. To format your text, type Markdown syntax or use the editor buttons for headings, bold text, lists, and links.' }}</p>
-                <a class="text-link" href="{{ route('documentation') }}">{{ $es ? 'Consultar la documentación' : 'Read the documentation' }} <span aria-hidden="true">↗</span></a>
+                <a class="text-link" href="{{ route('documentation') }}">{{ $es ? 'Consultar la documentación' : 'Read the documentation' }}<x-icon name="external-link" class="button-icon" /></a>
             </div>
             <dl class="details-list">
                 <div><dt>{{ $es ? '100 MB por cuenta' : '100 MB per account' }}</dt><dd>{{ $es ? 'Ese espacio incluye los documentos, los adjuntos, el historial y la papelera. Puedes consultar cuánto llevas usado en el panel lateral.' : 'This includes documents, attachments, history, and trash. The sidebar shows how much space you have used.' }}</dd></div>
@@ -142,12 +145,12 @@
         </section>
         <section class="wrap start-section" aria-labelledby="start-title">
             <div><h2 id="start-title">{{ $es ? 'Empieza a escribir' : 'Start writing' }}</h2><p>{{ $es ? 'Tu cuenta incluye un documento de bienvenida con las indicaciones para empezar.' : 'Your account includes a welcome document to help you get started.' }}</p></div>
-            <a class="button" href="{{ $authenticated ? route('notes.index') : route('register') }}" data-session-link data-authenticated-href="{{ route('notes.index') }}" data-authenticated-label="{{ $spaceLabel }}"><span data-session-label>{{ $authenticated ? $spaceLabel : ($es ? 'Crear una cuenta' : 'Create an account') }}</span> <span aria-hidden="true">→</span></a>
+            <a class="button" href="{{ $authenticated ? route('notes.index') : route('register') }}" data-session-link data-authenticated-href="{{ route('notes.index') }}" data-authenticated-label="{{ $spaceLabel }}"><span data-session-label>{{ $authenticated ? $spaceLabel : ($es ? 'Crear una cuenta' : 'Create an account') }}</span><x-icon name="arrow-right" class="button-icon" /></a>
         </section>
     </main>
     <footer class="wrap site-footer">
-        <div><a class="brand" href="{{ route('home') }}"><span class="spark" aria-hidden="true">✦</span> md-notes</a><p>{{ $es ? 'Notas y documentación en Markdown.' : 'Notes and documentation in Markdown.' }}</p></div>
-        <nav aria-label="{{ $es ? 'Enlaces del pie de página' : 'Footer links' }}"><a href="{{ route('documentation') }}">{{ $es ? 'Documentación' : 'Documentation' }}</a><a href="https://github.com/mateodd1/md-notes" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a></nav>
+        <div><a class="brand" href="{{ route('home') }}"><x-icon name="spark" class="brand-icon" />md-notes</a><p>{{ $es ? 'Notas y documentación en Markdown.' : 'Notes and documentation in Markdown.' }}</p></div>
+        <nav aria-label="{{ $es ? 'Enlaces del pie de página' : 'Footer links' }}"><a href="{{ route('documentation') }}">{{ $es ? 'Documentación' : 'Documentation' }}</a><a href="https://github.com/mateodd1/md-notes" target="_blank" rel="noopener noreferrer">GitHub <x-icon name="external-link" /></a></nav>
     </footer>
 </body>
 </html>
