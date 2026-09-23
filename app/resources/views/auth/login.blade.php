@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('body')
-<main class="auth-shell auth-login-layout">
+<main class="auth-shell auth-split-layout">
     <aside class="auth-intro">
         <span class="auth-intro-label">{{ __('ui.login_intro_label') }}</span>
         <h2>{{ __('ui.login_intro_title') }}</h2>
@@ -20,7 +20,7 @@
         @if ($errors->any()) <div class="errors"><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div> @endif
         <form method="post" action="{{ route('login.store') }}" autocomplete="off">
             @csrf
-            <label for="email">{{ __('ui.email') }}</label><input id="email" name="email" type="email" value="{{ old('email') }}" autocomplete="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true" required autofocus>
+            <label for="email">{{ __('ui.email') }}</label><input id="email" name="email" type="email" value="{{ is_string(old('email')) ? old('email') : '' }}" autocomplete="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true" required autofocus>
             <label for="password">{{ __('ui.password') }}</label><input id="password" name="password" type="password" autocomplete="off" data-lpignore="true" data-1p-ignore="true" required>
             <label class="checkbox-label"><input name="remember" type="checkbox"> {{ __('ui.remember_me') }}</label>
             <button class="button" type="submit">{{ __('ui.login') }}</button>

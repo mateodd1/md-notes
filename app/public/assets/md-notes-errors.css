@@ -1,0 +1,10 @@
+.error-shell { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--md-surface-container); }
+.error-card { width: min(100%, 600px); padding: clamp(28px, 5vw, 48px); border: 1px solid var(--line); border-radius: 24px; background: var(--paper); }
+.error-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); font-size: 17px; font-weight: 650; }
+.error-brand svg { width: 22px; height: 22px; fill: currentColor; }
+.error-code { margin: 44px 0 8px; color: var(--accent); font-size: 15px; font-weight: 700; letter-spacing: .06em; }
+.error-card h1 { margin: 0; font-size: clamp(28px, 5vw, 38px); font-weight: 550; letter-spacing: -.035em; line-height: 1.15; }
+.error-description { max-width: 45ch; margin: 16px 0 0; color: var(--muted); font-size: 15px; line-height: 1.6; }
+.error-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; }
+.error-actions .button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; padding: 9px 16px; }
+@media (max-width: 420px) { .error-actions { flex-direction: column; } .error-actions .button { width: 100%; } }

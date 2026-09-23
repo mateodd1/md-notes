@@ -185,8 +185,8 @@
 .toast button { display: grid; width: 36px; height: 36px; flex: none; margin-left: auto; place-items: center; border: 0; border-radius: 50%; padding: 0; background: transparent; color: #fff; }
 .toast button:hover, .toast button:focus-visible { background: rgba(255,255,255,.12); }
 .trash-header .back-to-notes { white-space: nowrap; flex-shrink: 0; }
-.auth-login-layout { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap: clamp(32px, 7vw, 88px); align-items: center; padding-inline: max(24px, calc((100vw - 940px) / 2)); }
-.auth-login-layout .auth-card { width: 100%; }
+.auth-split-layout { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap: clamp(32px, 7vw, 88px); align-items: center; padding-inline: max(24px, calc((100vw - 940px) / 2)); }
+.auth-split-layout .auth-card { width: 100%; }
 .auth-intro { max-width: 430px; }
 .auth-intro-label { color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .auth-intro h2 { margin: 16px 0; font-size: clamp(32px, 4vw, 48px); line-height: 1.12; letter-spacing: -.035em; font-weight: 600; }
@@ -196,16 +196,25 @@
 .auth-intro-items svg { width: 19px; height: 19px; color: var(--accent); flex: none; }
 .auth-intro > a { color: var(--accent); font-weight: 600; }
 .auth-card .auth-notice { padding: 10px 12px; border-radius: 8px; background: var(--md-surface-container-high); color: var(--ink); }
+.auth-card input[aria-invalid="true"] { border-color: var(--danger); }
 .auth-verify-card #code { text-align: center; letter-spacing: .25em; font-variant-numeric: tabular-nums; }
 .auth-verify-card .button { width: 100%; align-self: stretch; margin-top: 12px; }
 .auth-verify-card .auth-secondary-form { margin-top: 0; }
 .auth-text-button { border: 0; padding: 8px 0; color: var(--accent); background: transparent; cursor: pointer; }
+.auth-registration-toast { width: min(460px, calc(100vw - 32px)); }
+.auth-toast-copy { min-width: 0; max-height: min(240px, 40vh); overflow: auto; }
+.auth-toast-copy p { margin: 0; font-size: 14px; line-height: 1.4; }
+.auth-toast-copy p + p { margin-top: 5px; }
+.auth-registration-toast.is-entering { animation: auth-toast-in .26s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes auth-toast-in { from { opacity: 0; transform: translate(-50%, 14px) scale(.98); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
 @media (max-width: 760px) {
-    .auth-login-layout { display: flex; flex-direction: column-reverse; gap: 28px; }
+    .auth-split-layout { display: flex; flex-direction: column-reverse; gap: 28px; }
     .auth-intro { width: 100%; max-width: 420px; }
     .auth-intro h2 { font-size: 28px; }
     .auth-intro-items { margin: 18px 0; }
 }
+@media (max-width: 600px) { .auth-split-layout .auth-intro { padding: 0 24px 32px; } }
+@media (prefers-reduced-motion: reduce) { .auth-registration-toast.is-entering { animation: none; } }
 
 /* Public document pages and archived note views. */
 .shared-shell { min-height: 100vh; padding: 26px clamp(18px, 8vw, 180px) 60px; background: var(--canvas); }

@@ -151,13 +151,21 @@ class RegistrationTest extends TestCase
 
     public function test_registration_requires_a_valid_email_a_three_character_name_and_an_eight_character_password(): void
     {
-        $this->withSession(['_token' => 'test-token'])->post(route('register.store'), [
+        $this->followingRedirects()->withHeader('referer', route('register'))->withSession(['_token' => 'test-token'])->post(route('register.store'), [
             '_token' => 'test-token',
             'name' => 'Al',
             'email' => 'not-an-email',
             'password' => '1234567',
             'password_confirmation' => '1234567',
-        ])->assertSessionHasErrors(['name', 'email', 'password']);
+        ])
+            ->assertOk()
+            ->assertSee('class="auth-intro"', false)
+            ->assertSee('id="registration-toast"', false)
+            ->assertSee('role="alert"', false)
+            ->assertSee('md-notes-register.js')
+            ->assertSee('novalidate', false)
+            ->assertViewHas('errors', fn ($errors) => $errors->has(['name', 'email', 'password']))
+            ->assertDontSee('class="errors"', false);
     }
 
     public function test_account_names_allow_accented_letters_but_reject_special_characters(): void

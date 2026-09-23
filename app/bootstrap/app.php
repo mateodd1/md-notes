@@ -32,7 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ThrottleRequestsException $exception, Request $request) {
             $seconds = (int) ($exception->getHeaders()['Retry-After'] ?? 60);
-            $locale = str_starts_with(strtolower($request->getPreferredLanguage() ?? 'en'), 'es') ? 'es' : 'en';
+            $locale = $request->getPreferredLanguage(['es', 'en']) === 'es' ? 'es' : 'en';
             app()->setLocale($locale);
             $message = __('ui.too_many_requests', ['seconds' => $seconds]);
 

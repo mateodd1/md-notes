@@ -86,7 +86,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'min:3', 'max:80', 'regex:/\A[\p{L}0-9 ]+\z/u'],
             'email' => ['required', 'string', 'email:rfc', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'confirmed', 'min:8', 'max:128'],
+            'password' => ['required', 'string', 'confirmed', 'min:8', 'max:128'],
         ], ['name.regex' => __('ui.account_name_characters')]);
 
         $user = DB::transaction(fn (): User => User::query()->create([
@@ -214,7 +214,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', 'min:8', 'max:128'],
+            'password' => ['required', 'string', 'confirmed', 'min:8', 'max:128'],
         ]);
 
         $status = Password::reset(
