@@ -15,6 +15,7 @@ class DocumentationController extends Controller
 
         return view('documentation', [
             'title' => $locale === 'es' ? 'md-notes · Documentación' : 'md-notes · Documentation',
+            'modifiedAt' => date(DATE_ATOM, (int) filemtime($document)),
             'rendered' => Str::markdown((string) file_get_contents($document), [
                 'html_input' => 'strip',
                 'allow_unsafe_links' => false,

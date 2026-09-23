@@ -35,11 +35,13 @@ class WorkspaceDomainTest extends TestCase
             ->assertSee('https://app.mdnotes.net/login', false)
             ->assertSee('https://app.mdnotes.net/signup', false)
             ->assertSee('https://app.mdnotes.net/session-status', false)
-            ->assertHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://app.mdnotes.net; font-src 'self' data:");
-        $this->get('https://mdnotes.net/documentation.md')->assertOk();
+            ->assertHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://app.mdnotes.net; font-src 'self' data:")
+            ->assertHeaderMissing('X-Robots-Tag');
+        $this->get('https://mdnotes.net/documentation.md')->assertOk()->assertHeaderMissing('X-Robots-Tag');
+        $this->get('https://mdnotes.net/sitemap.xml')->assertOk()->assertHeaderMissing('X-Robots-Tag');
         $this->get('https://app.mdnotes.net/')->assertRedirect('https://app.mdnotes.net/login');
-        $this->get('https://app.mdnotes.net/login')->assertOk();
-        $this->get('https://app.mdnotes.net/signup')->assertOk();
+        $this->get('https://app.mdnotes.net/login')->assertOk()->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+        $this->get('https://app.mdnotes.net/signup')->assertOk()->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
         $this->assertSame('https://app.mdnotes.net', rtrim(route('notes.index'), '/'));
         $this->assertSame('https://app.mdnotes.net/settings', route('profile.edit'));
         $this->assertSame('https://mdnotes.net/api/notes/Test.md', route('api.notes.upload', ['path' => 'Test.md']));

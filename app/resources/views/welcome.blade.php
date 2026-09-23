@@ -2,15 +2,72 @@
     $es = app()->getLocale() === 'es';
     $authenticated = auth()->check();
     $spaceLabel = $es ? 'Acceder a mi espacio' : 'Open my space';
+    $canonical = route('home');
+    $pageTitle = $es ? 'md-notes · Notas y documentación en Markdown' : 'md-notes · Markdown notes and documentation';
+    $description = $es
+        ? 'md-notes: apuntes, notas y documentación en Markdown. Organiza tus archivos en carpetas y trabaja desde el navegador.'
+        : 'md-notes: notes and documentation in Markdown. Organise your files in folders and work in your browser.';
+    $socialImage = asset('android-chrome-512x512.png');
+    $structuredData = [
+        '@context' => 'https://schema.org',
+        '@graph' => [
+            [
+                '@type' => 'WebSite',
+                '@id' => $canonical.'#website',
+                'url' => $canonical,
+                'name' => 'md-notes',
+                'alternateName' => 'mdnotes',
+                'description' => $description,
+                'inLanguage' => $es ? 'es' : 'en',
+            ],
+            [
+                '@type' => 'WebApplication',
+                '@id' => $canonical.'#application',
+                'url' => $canonical,
+                'name' => 'md-notes',
+                'description' => $description,
+                'applicationCategory' => 'UtilitiesApplication',
+                'operatingSystem' => 'Any',
+                'browserRequirements' => $es ? 'Requiere un navegador web moderno' : 'Requires a modern web browser',
+                'isAccessibleForFree' => true,
+                'offers' => [
+                    '@type' => 'Offer',
+                    'price' => '0',
+                    'priceCurrency' => 'EUR',
+                ],
+                'featureList' => $es
+                    ? ['Editor Markdown', 'Carpetas y subcarpetas', 'Historial de versiones', 'Archivos adjuntos', 'Enlaces compartidos', 'API']
+                    : ['Markdown editor', 'Folders and subfolders', 'Version history', 'File attachments', 'Shared links', 'API'],
+            ],
+        ],
+    ];
 @endphp
 <!doctype html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-session-status-url="{{ route('session.status') }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="{{ $es ? 'md-notes: apuntes, notas y documentación en Markdown. Organiza tus archivos en carpetas y trabaja desde el navegador.' : 'md-notes: notes and documentation in Markdown. Organise your files in folders and work in your browser.' }}">
-    <title>{{ $es ? 'md-notes · Notas y documentación en Markdown' : 'md-notes · Markdown notes and documentation' }}</title>
+    <meta name="description" content="{{ $description }}">
+    <link rel="canonical" href="{{ $canonical }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="md-notes">
+    <meta property="og:title" content="{{ $pageTitle }}">
+    <meta property="og:description" content="{{ $description }}">
+    <meta property="og:url" content="{{ $canonical }}">
+    <meta property="og:locale" content="{{ $es ? 'es_ES' : 'en_US' }}">
+    <meta property="og:locale:alternate" content="{{ $es ? 'en_US' : 'es_ES' }}">
+    <meta property="og:image" content="{{ $socialImage }}">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+    <meta property="og:image:alt" content="md-notes">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ $pageTitle }}">
+    <meta name="twitter:description" content="{{ $description }}">
+    <meta name="twitter:image" content="{{ $socialImage }}">
+    <title>{{ $pageTitle }}</title>
     @include('partials.favicons')
+    <script type="application/ld+json">{!! json_encode($structuredData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) !!}</script>
     <link rel="stylesheet" href="{{ asset('assets/md-notes-landing.css') }}?v={{ filemtime(public_path('assets/md-notes-landing.css')) }}">
     <script src="{{ asset('assets/md-notes-landing.js') }}?v={{ filemtime(public_path('assets/md-notes-landing.js')) }}" defer></script>
 </head>

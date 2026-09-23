@@ -16,6 +16,11 @@ class ExampleTest extends TestCase
 
         $response->assertOk()
             ->assertSee('md-notes')
+            ->assertSee('<link rel="canonical" href="'.route('home').'">', false)
+            ->assertSee('<meta property="og:title"', false)
+            ->assertSee('<meta name="twitter:card" content="summary">', false)
+            ->assertSee('"@type":"WebSite"', false)
+            ->assertSee('"@type":"WebApplication"', false)
             ->assertHeader('Content-Security-Policy')
             ->assertHeader('Permissions-Policy', 'camera=(), geolocation=(), microphone=(), payment=(), usb=()')
             ->assertHeader('X-Frame-Options', 'DENY')
@@ -27,6 +32,9 @@ class ExampleTest extends TestCase
     {
         $this->withHeader('Accept-Language', 'es')->get(route('documentation'))
             ->assertOk()
+            ->assertSee('<link rel="canonical" href="'.route('documentation').'">', false)
+            ->assertSee('<meta property="og:type" content="article">', false)
+            ->assertSee('"@type":"TechArticle"', false)
             ->assertSee('Documentación de md-notes')
             ->assertSee('API desde terminal')
             ->assertSee('Authorization: Bearer TU_TOKEN', false);
@@ -39,5 +47,22 @@ class ExampleTest extends TestCase
             ->assertSee('md-notes documentation')
             ->assertSee('Terminal API')
             ->assertSee('Authorization: Bearer YOUR_TOKEN', false);
+    }
+
+    public function test_public_sitemap_lists_the_indexable_pages(): void
+    {
+        $response = $this->get(route('sitemap'));
+
+        $response->assertOk()
+            ->assertHeader('Content-Type', 'application/xml; charset=UTF-8')
+            ->assertSee('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">', false)
+            ->assertSee('<loc>'.route('home').'</loc>', false)
+            ->assertSee('<loc>'.route('documentation').'</loc>', false)
+            ->assertSee('<lastmod>', false);
+
+        $this->assertStringContainsString(
+            'Sitemap: https://mdnotes.net/sitemap.xml',
+            (string) file_get_contents(public_path('robots.txt')),
+        );
     }
 }

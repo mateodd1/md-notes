@@ -1,2 +1,4 @@
 User-agent: *
 Disallow:
+
+Sitemap: https://mdnotes.net/sitemap.xml

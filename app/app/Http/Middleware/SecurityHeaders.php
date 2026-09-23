@@ -30,6 +30,8 @@ class SecurityHeaders
             $response->headers->set('Cache-Control', 'private, no-store');
             $response->headers->set('X-Robots-Tag', 'noindex, nofollow, noarchive');
             $response->headers->set('Referrer-Policy', 'no-referrer');
+        } elseif ($this->isWorkspaceHost($request)) {
+            $response->headers->set('X-Robots-Tag', 'noindex, nofollow, noarchive');
         }
 
         return $response;
@@ -48,5 +50,16 @@ class SecurityHeaders
         $port = isset($parts['port']) ? ':'.$parts['port'] : '';
 
         return $scheme.'://'.$host.$port;
+    }
+
+    private function isWorkspaceHost(Request $request): bool
+    {
+        $publicHost = parse_url((string) config('md-notes.canonical_url'), PHP_URL_HOST);
+        $workspaceHost = parse_url((string) config('md-notes.workspace_url'), PHP_URL_HOST);
+
+        return is_string($publicHost)
+            && is_string($workspaceHost)
+            && $workspaceHost !== $publicHost
+            && strcasecmp($request->getHost(), $workspaceHost) === 0;
     }
 }

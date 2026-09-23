@@ -8,6 +8,7 @@
     <meta name="theme-color" content="#0e0f12" media="(prefers-color-scheme: dark)">
     @include('partials.favicons')
     <title>{{ $title ?? 'md-notes' }}</title>
+    @stack('meta')
     <script>
         try { const theme = localStorage.getItem('md-notes-theme') || 'system'; if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (_) { if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark'); }
     </script>

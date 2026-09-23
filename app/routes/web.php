@@ -8,6 +8,7 @@ use App\Http\Controllers\NotesController;
 use App\Http\Controllers\NoteVersionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ShareController;
+use App\Http\Controllers\SitemapController;
 use App\Services\ShareTokens;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +18,7 @@ $separateWorkspace = $workspaceHost && $workspaceHost !== $publicHost;
 
 Route::domain($separateWorkspace ? $publicHost : null)->group(function () use ($separateWorkspace): void {
     Route::view('/', 'welcome')->name('home');
+    Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
     Route::get('/documentation.md', [DocumentationController::class, 'show'])->name('documentation');
     if ($separateWorkspace) {
         Route::get('/share/{token}/media/{filename}', [ShareController::class, 'redirectMediaToWorkspace'])
