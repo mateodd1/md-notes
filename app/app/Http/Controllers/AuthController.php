@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
 use App\Services\PasswordSecurity;
+use App\Services\ProfileVerificationCodes;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -60,6 +62,10 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
+        if (! $request->user()->hasVerifiedEmail()) {
+            return redirect()->route('verification.notice');
+        }
+
         return redirect()->intended(route('notes.index'));
     }
 
@@ -68,24 +74,35 @@ class AuthController extends Controller
         return view('auth.register');
     }
 
-    public function register(Request $request, NoteSpace $spaces, NoteVersionHistory $history): RedirectResponse
+    public function register(Request $request, NoteSpace $spaces, NoteVersionHistory $history, ProfileVerificationCodes $codes): RedirectResponse
     {
+        $name = $request->input('name');
+        $email = $request->input('email');
         $request->merge([
-            'name' => trim((string) $request->input('name')),
-            'email' => trim((string) $request->input('email')),
+            'name' => is_string($name) ? trim($name) : $name,
+            'email' => is_string($email) ? trim($email) : $email,
         ]);
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'min:3', 'max:80'],
+            'name' => ['required', 'string', 'min:3', 'max:80', 'regex:/\A[\p{L}0-9 ]+\z/u'],
             'email' => ['required', 'string', 'email:rfc', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', 'min:8', 'max:128'],
-        ]);
+        ], ['name.regex' => __('ui.account_name_characters')]);
 
         $user = DB::transaction(fn (): User => User::query()->create([
             'name' => $data['name'],
             'email' => mb_strtolower($data['email']),
             'password' => Hash::make($data['password']),
         ]));
+
+        try {
+            $codes->send($user, ProfileVerificationCodes::ACCOUNT);
+        } catch (Throwable $exception) {
+            report($exception);
+            $user->delete();
+
+            return back()->withErrors(['email' => __('ui.code_delivery_failed')])->onlyInput('name', 'email');
+        }
 
         $spaces->root($user);
         $welcomePath = null;
@@ -99,15 +116,65 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
+        if ($welcomePath) {
+            $request->session()->put('post_verification_path', $welcomePath);
+        }
+
+        return redirect()->route('verification.notice');
+    }
+
+    public function verificationNotice(Request $request): RedirectResponse|View
+    {
+        if ($request->user()->hasVerifiedEmail()) {
+            return redirect()->route('notes.index');
+        }
+
+        return view('auth.verify-email');
+    }
+
+    public function verifyEmail(Request $request, ProfileVerificationCodes $codes): RedirectResponse
+    {
+        if ($request->user()->hasVerifiedEmail()) {
+            return redirect()->route('notes.index');
+        }
+
+        $data = $request->validate(['code' => ['required', 'digits:6']]);
+        $user = $request->user();
+        if (! $codes->verify($user, ProfileVerificationCodes::ACCOUNT, $data['code'])) {
+            return back()->withErrors(['code' => __('ui.invalid_or_expired_code')]);
+        }
+
+        $user->markEmailAsVerified();
+        event(new Verified($user));
+
         try {
             Mail::to($user->email)->send(new WelcomeToMdNotes($user, app()->getLocale()));
         } catch (Throwable $exception) {
             report($exception);
         }
 
+        $welcomePath = $request->session()->pull('post_verification_path');
+
         return $welcomePath
             ? redirect()->route('notes.show', ['path' => $welcomePath])->with('status', __('ui.account_created'))
             : redirect()->route('notes.index')->with('status', __('ui.account_created'));
+    }
+
+    public function resendVerificationCode(Request $request, ProfileVerificationCodes $codes): RedirectResponse
+    {
+        if ($request->user()->hasVerifiedEmail()) {
+            return redirect()->route('notes.index');
+        }
+
+        try {
+            $codes->send($request->user(), ProfileVerificationCodes::ACCOUNT);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return back()->withErrors(['code' => __('ui.code_delivery_failed')]);
+        }
+
+        return back()->with('status', __('ui.verification_code_sent'));
     }
 
     public function forgotPasswordForm(): View

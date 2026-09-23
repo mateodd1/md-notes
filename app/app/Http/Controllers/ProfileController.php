@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\AccountExportReadyMail;
+use App\Mail\AccountDeletedMail;
 use App\Models\ApiToken;
 use App\Services\AccountExports;
 use App\Services\ApiTokens;
@@ -48,9 +49,12 @@ class ProfileController extends Controller
             return $response;
         }
 
+        $name = $request->input('name');
+        $request->merge(['name' => is_string($name) ? trim($name) : $name]);
+
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:80'],
-        ]);
+            'name' => ['required', 'string', 'min:3', 'max:80', 'regex:/\A[\p{L}0-9 ]+\z/u'],
+        ], ['name.regex' => __('ui.account_name_characters')]);
 
         $request->user()->forceFill(['name' => trim($data['name'])])->save();
 
@@ -155,9 +159,17 @@ class ProfileController extends Controller
         }
 
         Auth::logout();
+        $recipientEmail = $user->email;
+        $recipientName = $user->name;
         $user->delete();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        try {
+            Mail::to($recipientEmail)->send(new AccountDeletedMail($recipientName, app()->getLocale()));
+        } catch (Throwable $exception) {
+            report($exception);
+        }
 
         return redirect()->route('login')->with('status', __('ui.account_deleted'));
     }

@@ -41,7 +41,7 @@ Route::domain($separateWorkspace ? $workspaceHost : null)->group(function () use
     if (! $separateWorkspace) {
         Route::get('/media/{filename}', [NoteMediaController::class, 'show'])
             ->where('filename', '[a-z0-9]{24}\.[a-z0-9]{1,10}')
-            ->middleware('auth')
+            ->middleware(['auth', 'verified'])
             ->name('media.legacy');
     }
 
@@ -52,7 +52,7 @@ Route::domain($separateWorkspace ? $workspaceHost : null)->group(function () use
         ->name('shares.media');
     Route::post('/share/{token}/copy', [ShareController::class, 'copyToSpace'])
         ->where('token', ShareTokens::ROUTE_PATTERN)
-        ->middleware(['auth', 'throttle:shares-copy'])
+        ->middleware(['auth', 'verified', 'throttle:shares-copy'])
         ->name('shares.copy');
     Route::get('/share/{token}', [ShareController::class, 'show'])
         ->where('token', ShareTokens::ROUTE_PATTERN)
@@ -76,7 +76,13 @@ Route::domain($separateWorkspace ? $workspaceHost : null)->group(function () use
 
     Route::post('/logout', [AuthController::class, 'destroy'])->middleware('auth')->name('logout');
 
-    Route::middleware('auth')->prefix($separateWorkspace ? '' : 'app')->group(function (): void {
+    Route::middleware('auth')->group(function (): void {
+        Route::get('/email/verify', [AuthController::class, 'verificationNotice'])->name('verification.notice');
+        Route::post('/email/verify', [AuthController::class, 'verifyEmail'])->middleware('throttle:10,15,verification.verify:')->name('verification.verify');
+        Route::post('/email/verify/resend', [AuthController::class, 'resendVerificationCode'])->middleware('throttle:3,15,verification.resend:')->name('verification.send');
+    });
+
+    Route::middleware(['auth', 'verified'])->prefix($separateWorkspace ? '' : 'app')->group(function (): void {
         Route::get('/', [NotesController::class, 'index'])->name('notes.index');
         Route::get('/search', [NotesController::class, 'search'])->middleware('throttle:60,1,notes.search:')->name('notes.search');
         Route::get('/quota', [NotesController::class, 'quota'])->middleware('throttle:15,1,quota.show:')->name('quota.show');

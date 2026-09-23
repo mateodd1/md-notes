@@ -16,6 +16,8 @@ class ProfileVerificationCodes
 
     public const EMAIL = 'email';
 
+    public const ACCOUNT = 'account';
+
     private const MAX_ATTEMPTS = 5;
 
     private const ATTEMPT_DECAY_SECONDS = 900;

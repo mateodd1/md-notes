@@ -23,6 +23,7 @@ class AccountExportTest extends TestCase
         file_put_contents('/tmp/md-notes-testing.sqlite', '');
         parent::setUp();
         $this->artisan('migrate:fresh --force')->assertSuccessful();
+        User::created(fn (User $user) => $user->markEmailAsVerified());
         $suffix = bin2hex(random_bytes(8));
         $this->notesPath = sys_get_temp_dir().'/md-notes-export-notes-'.$suffix;
         $this->exportsPath = sys_get_temp_dir().'/md-notes-exports-'.$suffix;

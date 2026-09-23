@@ -19,6 +19,7 @@ class ShareTest extends TestCase
         file_put_contents('/tmp/md-notes-testing.sqlite', '');
         parent::setUp();
         $this->artisan('migrate:fresh --force')->assertSuccessful();
+        User::created(fn (User $user) => $user->markEmailAsVerified());
         $this->mediaPath = sys_get_temp_dir().'/md-notes-shares-'.bin2hex(random_bytes(8));
     }
 

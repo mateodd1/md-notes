@@ -20,7 +20,9 @@
     const contextMenu = document.getElementById('context-menu'); let contextTarget = { type: 'root', path: '', name: '', color: '', collapsed: false, pinned: false };
     const closeContextMenu = () => contextMenu.classList.remove('open');
     const modalAnimationDuration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 170;
-    const openModal = (id) => { window.location.hash = `#${id}`; };
+    const openModal = (id) => { setMobileSidebar(false); window.location.hash = `#${id}`; };
+    window.addEventListener('hashchange', () => { if (document.querySelector('.modal:target')) setMobileSidebar(false); });
+    document.getElementById('version-history')?.addEventListener('click', (event) => { if (event.target === event.currentTarget) closeModal(); });
     const closeModal = (nextHash = '') => { const modal = document.querySelector('.modal:target'); if (!modal) { window.location.hash = nextHash; return; } modal.classList.add('is-closing'); setTimeout(() => { modal.classList.remove('is-closing'); window.location.hash = nextHash; }, modalAnimationDuration); };
     const pdfViewerFrame = document.getElementById('pdf-viewer-frame');
     const clearPdfViewer = () => { if (pdfViewerFrame) pdfViewerFrame.removeAttribute('src'); };

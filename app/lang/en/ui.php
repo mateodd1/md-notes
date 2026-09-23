@@ -1,6 +1,19 @@
 <?php
 
 return [
+    'login_intro_label' => 'Your workspace',
+    'login_intro_title' => 'Write, organise, and find it again.',
+    'login_intro_copy' => 'A straightforward place for your Markdown notes and documentation, right in your browser.',
+    'login_intro_notes' => 'Edit and read your .md files',
+    'login_intro_folders' => 'Organise notes in folders',
+    'login_intro_sharing' => 'Share when you need to',
+    'login_intro_docs' => 'Read the documentation',
+    'verify_account_title' => 'Verify your email',
+    'verify_account_help' => 'We sent a six-digit code to :email. Enter it to activate your account.',
+    'verification_code_sent' => 'New code sent.',
+    'account_name_characters' => 'The name may only contain letters, numbers and spaces.',
+    'activate_account' => 'Activate account',
+    'resend_verification_code' => 'Send another code',
     'open_profile_menu' => 'Open profile menu',
     'color_blue' => 'Blue',
     'color_violet' => 'Violet',

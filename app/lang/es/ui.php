@@ -1,6 +1,19 @@
 <?php
 
 return [
+    'login_intro_label' => 'Tu espacio de trabajo',
+    'login_intro_title' => 'Escribe, organiza y vuelve a encontrarlo.',
+    'login_intro_copy' => 'Un lugar sencillo para tus notas y documentación en Markdown, desde el navegador.',
+    'login_intro_notes' => 'Edita y consulta tus archivos .md',
+    'login_intro_folders' => 'Organiza tus notas en carpetas',
+    'login_intro_sharing' => 'Comparte cuando lo necesites',
+    'login_intro_docs' => 'Consultar la documentación',
+    'verify_account_title' => 'Verifica tu correo',
+    'verify_account_help' => 'Hemos enviado un código de seis cifras a :email. Escríbelo para activar tu cuenta.',
+    'verification_code_sent' => 'Nuevo código enviado.',
+    'account_name_characters' => 'El nombre solo puede contener letras, números y espacios.',
+    'activate_account' => 'Activar cuenta',
+    'resend_verification_code' => 'Enviar otro código',
     'open_profile_menu' => 'Abrir menú de perfil',
     'color_blue' => 'Azul',
     'color_violet' => 'Violeta',
