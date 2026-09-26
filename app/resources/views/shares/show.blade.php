@@ -1,5 +1,21 @@
 @extends('layouts.app')
 
+@push('meta')
+<meta name="description" content="{{ __('ui.shared_note') }}">
+<link rel="canonical" href="{{ $canonicalUrl }}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="md-notes">
+<meta property="og:title" content="{{ $title }} · md-notes">
+<meta property="og:description" content="{{ __('ui.shared_note') }}">
+<meta property="og:url" content="{{ $canonicalUrl }}">
+<meta property="og:locale" content="{{ app()->getLocale() === 'es' ? 'es_ES' : 'en_US' }}">
+<meta property="og:image" content="{{ asset('android-chrome-512x512.png') }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ $title }} · md-notes">
+<meta name="twitter:description" content="{{ __('ui.shared_note') }}">
+<meta name="twitter:image" content="{{ asset('android-chrome-512x512.png') }}">
+@endpush
+
 @section('body')
 <main class="shared-shell">
     @if ($errors->any())

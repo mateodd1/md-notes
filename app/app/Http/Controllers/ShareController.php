@@ -118,6 +118,7 @@ class ShareController extends Controller
         return view('shares.show', [
             'share' => $share,
             'title' => $title,
+            'canonicalUrl' => $this->tokens->publicUrl($share->token),
             'rendered' => $rendered,
             'showFileTitle' => preg_match('/<h1(?:\s[^>]*)?>/i', $rendered) !== 1,
             'expirationLabel' => $share->user_id === null ? $this->anonymousExpirationLabel($share) : null,
