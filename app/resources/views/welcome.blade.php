@@ -141,7 +141,7 @@
             </div>
             <dl class="details-list">
                 <div><dt>{{ $es ? '100 MB por cuenta' : '100 MB per account' }}</dt><dd>{{ $es ? 'Ese espacio incluye los documentos, los adjuntos, el historial y la papelera. Puedes consultar cuánto llevas usado en el panel lateral.' : 'This includes documents, attachments, history, and trash. The sidebar shows how much space you have used.' }}</dd></div>
-                <div><dt>{{ $es ? 'API disponible' : 'API available' }}</dt><dd>{{ $es ? 'Puedes publicar un archivo Markdown desde la terminal, incluso sin cuenta. La documentación explica cómo obtener el enlace.' : 'You can publish a Markdown file from the terminal, even without an account. The documentation explains how to get the link.' }}</dd></div>
+                <div><dt>{{ $es ? 'API disponible' : 'API available' }}</dt><dd>{{ $es ? 'Puedes publicar un archivo Markdown desde la terminal, incluso sin cuenta.' : 'You can publish a Markdown file from the terminal, even without an account.' }}</dd></div>
                 <div><dt>{{ $es ? 'Tema claro y oscuro' : 'Light and dark themes' }}</dt><dd>{{ $es ? 'Por defecto se usa el tema de tu sistema. Si prefieres otro, puedes cambiarlo desde el menú del perfil.' : 'The theme follows your system setting by default. You can choose a different one from the profile menu.' }}</dd></div>
             </dl>
         </section>
