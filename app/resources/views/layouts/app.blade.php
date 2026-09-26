@@ -18,6 +18,23 @@
     <link rel="stylesheet" href="{{ asset('assets/md-notes-google.css') }}?v={{ filemtime(public_path('assets/md-notes-google.css')) }}">
     <link rel="stylesheet" href="{{ asset('assets/md-notes-pages.css') }}?v={{ filemtime(public_path('assets/md-notes-pages.css')) }}">
     <script defer src="{{ asset('assets/md-notes-viewport.js') }}?v={{ filemtime(public_path('assets/md-notes-viewport.js')) }}"></script>
+    @if (auth()->check() && auth()->user()->hasVerifiedEmail() && ! auth()->user()->isDemo())
+        @php
+            $offlineConfig = [
+                'account' => \App\Services\OfflineNotes::accountKey(auth()->user()),
+                'worker' => route('offline.worker'), 'session' => route('offline.session'),
+                'sync' => route('offline.sync'), 'shell' => route('offline.shell'),
+                'notes' => route('notes.index'), 'login' => route('login'),
+                'locale' => app()->getLocale(), 'translations' => __('offline'),
+            ];
+        @endphp
+        <script>window.mdNotesOfflineConfig = @json($offlineConfig);</script>
+        <link rel="stylesheet" href="{{ asset('assets/md-notes-offline.css') }}?v={{ filemtime(public_path('assets/md-notes-offline.css')) }}">
+        <script defer src="{{ asset('assets/md-notes-offline-db.js') }}?v={{ filemtime(public_path('assets/md-notes-offline-db.js')) }}"></script>
+        <script defer src="{{ asset('assets/md-notes-offline.js') }}?v={{ filemtime(public_path('assets/md-notes-offline.js')) }}"></script>
+        <script defer src="{{ asset('assets/vendor/marked.js') }}"></script>
+        <script defer src="{{ asset('assets/vendor/purify.js') }}"></script>
+    @endif
 </head>
 <body>
     @yield('body')

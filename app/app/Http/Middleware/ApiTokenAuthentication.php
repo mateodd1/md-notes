@@ -9,9 +9,13 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ApiTokenAuthentication
 {
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, string $mode = 'required'): Response
     {
         $plainToken = $request->bearerToken();
+
+        if ($mode === 'optional' && ! $request->headers->has('Authorization')) {
+            return $next($request);
+        }
 
         if (! is_string($plainToken) || ! str_starts_with($plainToken, 'mdn_')) {
             return response()->json(['message' => 'An API token is required.'], 401);

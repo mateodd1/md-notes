@@ -135,11 +135,15 @@ class NotesController extends Controller
             'snapshot' => ['nullable', 'boolean'],
         ]);
         try {
-            $this->spaces->write($request->user(), $path, $data['content'], $request->boolean('snapshot'));
-            if ($request->boolean('snapshot')) {
-                $this->history->record($request->user(), $path, $data['content']);
-            }
-            $this->media->pruneUnreferenced($request->user());
+            $this->spaces->synchronized($request->user(), function () use ($request, $path, $data): void {
+                $this->spaces->withNoteRollback($request->user(), $path, function () use ($request, $path, $data): void {
+                    $this->spaces->write($request->user(), $path, $data['content'], $request->boolean('snapshot'));
+                    if ($request->boolean('snapshot')) {
+                        $this->history->record($request->user(), $path, $data['content']);
+                    }
+                });
+                $this->media->pruneUnreferenced($request->user());
+            });
         } catch (RuntimeException $exception) {
             if ($request->expectsJson()) {
                 return response()->json([

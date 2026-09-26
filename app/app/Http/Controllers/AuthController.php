@@ -8,8 +8,8 @@ use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
 use App\Services\PasswordSecurity;
 use App\Services\ProfileVerificationCodes;
-use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -241,7 +241,7 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect()->route('login')->header('Clear-Site-Data', '"cache", "storage"');
     }
 
     private function welcomeNoteContent(): string

@@ -2,6 +2,19 @@
     const config = window.mdNotesWorkspace;
     if (!config) return;
     const t = config.translations;
+    const offline = window.mdOffline;
+    const offlineText = window.mdNotesOfflineConfig?.translations;
+    let localSaveTimer;
+    let pendingOfflinePaths = new Set();
+    window.addEventListener('md-offline-state', (event) => {
+        pendingOfflinePaths = new Set(event.detail.paths);
+        if (state && !state.hidden && !saver?.dirty) state.textContent = event.detail.paths.includes(activePath) ? offlineText.local_saved : t.saved;
+    });
+    window.addEventListener('md-offline-warning', event => showToast(event.detail, 'error'));
+    window.addEventListener('md-offline-conflict', (event) => {
+        if (activePath === event.detail.source) { activePath = event.detail.path; updateActiveNoteLocation(); }
+        showToast(offlineText.conflict.replace(':path', event.detail.path));
+    });
     const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const quotaUrl = config.urls.quota;
     const svgIcon = (name, className = 'icon') => { const paths = { close: '<path d="m6 6 12 12M18 6 6 18"/>', arrowLeft: '<path d="M19 12H5M10 7l-5 5 5 5"/>', download: '<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>' }; return `<svg class="${className}" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || ''}</svg>`; };
@@ -158,15 +171,18 @@
     };
     const mutateTree = async (url, fields, successMessage) => {
         if (navigating) return;
+        if (!navigator.onLine) { showToast(offlineText?.online_only || t.couldNotMove, 'error'); return; }
         if (pendingUploads) { showToast(t.uploading); return; }
         navigating = true;
         const previousLayout = editorLayout;
         if (previousLayout) previousLayout.inert = true;
         try {
             if (!await saveQuietly(true)) throw new Error(lastSaveError || t.couldNotSave);
+            if (await offline?.isPending(activePath)) throw Error(offline.lastError || offlineText.logout_pending);
             const response = await fetch(url, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken }, body: new URLSearchParams({ _token: csrfToken, _method: 'PATCH', ...fields, active_path: activePath || '' }) });
             const result = await response.json().catch(() => ({ message: t.couldNotUpdateTree }));
             if (!response.ok) throw new Error(result.message || t.couldNotMove);
+            if (fields.source && result.path) await offline?.relocate(fields.source, result.path);
             activePath = result.activePath || null;
             tree.innerHTML = result.tree;
             updateActiveNoteLocation(); bindTreeInteractions(); showToast(result.message || successMessage);
@@ -190,7 +206,7 @@
         if (status === 'saving') { state.textContent = t.saving; state.hidden = false; return; }
         if (status === 'error') { state.textContent = lastSaveError || t.couldNotSave; state.hidden = false; return; }
         if (saver?.dirty) { state.hidden = true; return; }
-        state.textContent = t.saved;
+        state.textContent = pendingOfflinePaths.has(activePath) ? offlineText.local_saved : t.saved;
         state.hidden = false;
     };
     const setEditorMode = async (editing) => { if (!editorLayout) return; if (!editing && pendingUploads) { showToast(t.uploading); return; } if (!editing) { if (!await saveQuietly()) { showToast(lastSaveError || t.couldNotSave, 'error'); return; } try { await refreshPreview(); } catch (_) { showToast(t.couldNotRefreshPreview, 'error'); return; } } editorLayout.classList.toggle('is-reading', !editing); updateSaveState(); editNoteButton.hidden = editing; readNoteButton.hidden = !editing; saveNoteButton.hidden = !editing; if (editing) setTimeout(() => editor.focus(), 0); };
@@ -201,6 +217,7 @@
     let uploadQueue = Promise.resolve(); let pendingUploads = 0;
     function uploadMedia(file) {
         if (!editor || !file) return Promise.resolve(false);
+        if (!navigator.onLine) { showToast(offlineText?.online_only || t.fileUploadFailed, 'error'); return Promise.resolve(false); }
         if (file.size > 10 * 1024 * 1024) { showToast(t.attachmentTooLarge, 'error'); return Promise.resolve(false); }
 
         const label = file.name || (file.type.startsWith('image/') ? 'image.png' : 'attachment');
@@ -253,14 +270,32 @@
         });
     }
     const enhanceImages = (root) => { if (!root) return; root.querySelectorAll('img').forEach((image) => { if (image.closest('.note-image')) return; const imageElement = image.closest('a') || image; const wrapper = document.createElement('span'); wrapper.className = 'note-image'; imageElement.parentNode.insertBefore(wrapper, imageElement); wrapper.append(imageElement); const download = document.createElement('a'); download.className = 'image-download'; download.href = image.currentSrc || image.src; download.download = ''; download.title = t.downloadImage; download.setAttribute('aria-label', t.downloadImage); download.innerHTML = svgIcon('download'); wrapper.append(download); }); };
-    const bindEditor = () => {
+    const bindEditor = async () => {
         editor = document.getElementById('editor'); state = document.getElementById('save-state'); editorLayout = document.getElementById('editor-layout'); editNoteButton = document.getElementById('edit-note'); readNoteButton = document.getElementById('read-note'); saveNoteButton = document.getElementById('save-note');
         const attachmentButton = document.getElementById('attach-file'); const attachmentInput = document.getElementById('attachment-file');
         if (!editor || !state || !editorLayout) return;
         editorLayout.dataset.dropLabel = t.dropFiles;
         const boundEditor = editor;
         const boundForm = document.getElementById('note-form');
+        const boundPath = activePath;
+        let restoredDraft = false;
+        let noteOfflineReady = false;
+        if (offline) {
+            boundEditor.disabled = true;
+            try {
+                const note = await offline.remember(boundPath, boundEditor.value, boundForm.dataset.revision);
+                noteOfflineReady = Boolean(note);
+                if (note?.dirty) {
+                    restoredDraft = true;
+                    boundEditor.value = note.content;
+                    const preview = editorLayout.querySelector('.preview-markdown');
+                    if (preview) preview.innerHTML = window.renderOfflineMarkdown(note.content, config.urls.notes);
+                }
+            } catch (error) { showToast(error.message || offlineText.storage_failed, 'error'); }
+            finally { boundEditor.disabled = false; }
+        }
         saver = new window.MdNotesSaver(() => boundEditor.value, async (content, snapshot) => {
+            if (offline?.available && noteOfflineReady) { await offline.save(boundPath, content, snapshot); return; }
             const response = await fetch(boundForm.action, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken }, body: new URLSearchParams({ _token: csrfToken, _method: 'PUT', content, snapshot: snapshot ? '1' : '0' }) });
             if (!response.ok) {
                 const result = await response.json().catch(() => ({}));
@@ -271,7 +306,13 @@
             lastSaveError = status === 'error' ? (error?.message || t.couldNotSave) : '';
             updateSaveState(status);
         });
-        editor.addEventListener('input', () => updateSaveState());
+        if (restoredDraft) saver.snapshot = null;
+        editor.addEventListener('input', () => {
+            updateSaveState();
+            if (!offline?.available || !noteOfflineReady) return;
+            clearTimeout(localSaveTimer);
+            localSaveTimer = setTimeout(() => offline.queue(boundPath, boundEditor.value).catch(error => showToast(error.message, 'error')), 350);
+        });
         editor.addEventListener('paste', (event) => {
             const directFiles = Array.from(event.clipboardData?.files || []);
             const itemFiles = Array.from(event.clipboardData?.items || []).map((item) => item.kind === 'file' ? item.getAsFile() : null).filter(Boolean);
@@ -321,11 +362,29 @@
         attachmentInput?.addEventListener('change', () => { queueUploads(attachmentInput.files); attachmentInput.value = ''; });
         editNoteButton?.addEventListener('click', () => setEditorMode(true));
         readNoteButton?.addEventListener('click', () => setEditorMode(false));
-        saveNoteButton?.addEventListener('click', async (event) => { event.preventDefault(); if (!await saveQuietly(true)) { showToast(lastSaveError || t.couldNotSave, 'error'); return; } try { await refreshPreview(); showToast(t.changesSaved); } catch (_) { showToast(t.couldNotRefreshPreview, 'error'); } });
+        saveNoteButton?.addEventListener('click', async (event) => { event.preventDefault(); if (!await saveQuietly(true)) { showToast(lastSaveError || t.couldNotSave, 'error'); return; } try { await refreshPreview(); showToast(await offline?.isPending(activePath) ? (offline.lastError || offlineText.local_saved) : t.changesSaved); } catch (_) { showToast(t.couldNotRefreshPreview, 'error'); } });
         editorLayout.querySelectorAll('[data-format]').forEach((button) => { if (button.dataset.formatBound) return; button.dataset.formatBound = 'true'; button.addEventListener('click', () => applyMarkdownFormat(button.dataset.format)); });
+        offline?.cacheMedia([...editorLayout.querySelectorAll('img[src], .preview-pane a[href]')].map(element => element.src || element.href)).catch(() => {});
+        offline?.sync();
     };
     async function saveQuietly(snapshot = false) { return !editor || !saver ? true : saver.save(snapshot); }
-    async function refreshPreview() { const response = await fetch(document.getElementById('note-form').action, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }); if (!response.ok) throw new Error(); const nextPreview = new DOMParser().parseFromString(await response.text(), 'text/html').querySelector('.preview-pane'); const currentPreview = editorLayout?.querySelector('.preview-pane'); if (!nextPreview || !currentPreview) throw new Error(); currentPreview.replaceWith(nextPreview); enhanceImages(nextPreview); }
+    async function refreshPreview() {
+        const localPreview = () => {
+            const preview = editorLayout?.querySelector('.preview-markdown');
+            if (!preview) throw Error();
+            preview.innerHTML = window.renderOfflineMarkdown(editor.value, config.urls.notes);
+            enhanceImages(preview);
+        };
+        if (offline?.available && (!navigator.onLine || await offline.isPending(activePath))) { localPreview(); return; }
+        try {
+            const response = await fetch(document.getElementById('note-form').action, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!response.ok) throw new Error();
+            const nextPreview = new DOMParser().parseFromString(await response.text(), 'text/html').querySelector('.preview-pane');
+            const currentPreview = editorLayout?.querySelector('.preview-pane');
+            if (!nextPreview || !currentPreview) throw new Error();
+            currentPreview.replaceWith(nextPreview); enhanceImages(nextPreview);
+        } catch (error) { if (offline?.available) localPreview(); else throw error; }
+    }
     const replaceDeleteModal = (nextDocument) => { const currentModal = document.getElementById('confirm-delete'); const nextModal = nextDocument.getElementById('confirm-delete'); if (currentModal && nextModal) currentModal.replaceWith(nextModal); else if (currentModal) currentModal.remove(); else if (nextModal) contextMenu.before(nextModal); };
     let displayedPathname = window.location.pathname;
     const navigateToNote = async (url, pushHistory = true) => {
@@ -338,6 +397,13 @@
         if (previousLayout) previousLayout.inert = true;
         try {
             if (!await saveQuietly(true)) throw new Error(lastSaveError || t.couldNotSave);
+            clearTimeout(localSaveTimer);
+            if (!navigator.onLine && offline?.available) {
+                const basePath = new URL(config.urls.notes + '/').pathname;
+                const notePath = decodeURIComponent(targetUrl.pathname.slice(basePath.length));
+                if (!await offline.load(notePath)) throw Error(offlineText.not_cached);
+                window.location.assign(offline.config.shell + '?note=' + encodeURIComponent(notePath)); return;
+            }
             const response = await fetch(targetUrl.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             if (!response.ok) throw new Error(t.couldNotOpenNote);
             const nextDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
@@ -351,9 +417,13 @@
             activePath = nextTree.querySelector('.tree-note.active')?.dataset.dragPath || null;
             displayedPathname = targetUrl.pathname;
             if (pushHistory) window.history.pushState({}, '', targetUrl.href);
-            bindTreeInteractions(); bindEditor(); enhanceImages(document.querySelector('.preview-pane'));
+            bindTreeInteractions(); await bindEditor(); enhanceImages(document.querySelector('.preview-pane'));
             bindMobileSidebarToggle(); bindThemeChoices(); setTheme(readTheme(), false);
         } catch (error) {
+            if (error instanceof TypeError && offline?.available) {
+                const notePath = decodeURIComponent(targetUrl.pathname.slice(new URL(config.urls.notes + '/').pathname.length));
+                if (await offline.load(notePath)) { window.location.assign(offline.config.shell + '?note=' + encodeURIComponent(notePath)); return; }
+            }
             if (!pushHistory) window.history.replaceState({}, '', displayedPathname);
             showToast(error.message || t.couldNotOpenNote, 'error');
         } finally {
@@ -363,7 +433,16 @@
     };
     tree.addEventListener('click', (event) => { if (Date.now() < suppressTreeClickUntil) return; const link = event.target.closest('.tree-note-link'); if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); setMobileSidebar(false); navigateToNote(link.href); }); window.addEventListener('popstate', () => navigateToNote(window.location.href, false));
     window.bindNoteSearch(config, (url) => { setMobileSidebar(false); navigateToNote(url); });
-    bindEditor(); enhanceImages(document.querySelector('.preview-pane')); setInterval(() => { if (!navigating) saveQuietly(); }, 8000);
+    document.addEventListener('submit', event => {
+        if (!navigator.onLine && !event.target.matches('#note-form')) {
+            event.preventDefault(); event.stopImmediatePropagation(); showToast(offlineText?.online_only || t.couldNotSave, 'error');
+        }
+    }, true);
+    bindEditor().then(async () => {
+        await offline?.prune([...tree.querySelectorAll('.tree-note')].map(note => note.dataset.dragPath));
+        offline?.sync();
+    }).catch(error => showToast(error.message, 'error'));
+    enhanceImages(document.querySelector('.preview-pane')); setInterval(() => { if (!navigating) saveQuietly(); }, 8000);
     window.addEventListener('beforeunload', (event) => { if ((editor && saver?.dirty) || pendingUploads) { event.preventDefault(); event.returnValue = ''; } });
 
 })();

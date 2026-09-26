@@ -223,6 +223,7 @@
 .shared-header-right { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; }
 .shared-note { padding: clamp(22px, 4vw, 50px); border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: none; }
 .shared-note h1 { margin: 0; font-size: clamp(27px, 5vw, 39px); letter-spacing: -.035em; }
+.shared-note-expiration { margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
 .shared-theme { position: relative; }
 .shared-theme summary { display: inline-flex; min-height: 40px; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; color: var(--accent); background: var(--paper); cursor: pointer; list-style: none; }
 .shared-theme summary::-webkit-details-marker { display: none; }

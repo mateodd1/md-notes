@@ -47,7 +47,7 @@ class RedirectLegacyDomain
             return redirect()->away($workspaceUrl.$uri, 308);
         }
 
-        if ($path === '/' || $path === '/documentation.md') {
+        if ($path === '/' || $path === '/documentation.md' || $path === '/documentation.raw.md') {
             return $legacy ? redirect()->away($canonicalUrl.$uri, 308) : $next($request);
         }
 

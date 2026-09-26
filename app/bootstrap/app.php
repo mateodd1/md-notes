@@ -20,6 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $offlineSync = fn (Request $request): bool => $request->is('offline/sync', 'app/offline/sync');
+        $middleware->trimStrings(except: [$offlineSync]);
+        $middleware->convertEmptyStringsToNull(except: [$offlineSync]);
         $middleware->replace(Illuminate\Http\Middleware\TrustProxies::class, TrustProxies::class);
         $middleware->prepend(RedirectLegacyDomain::class);
         $middleware->append(SecurityHeaders::class);

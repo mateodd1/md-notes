@@ -30,7 +30,7 @@ Un espacio de apuntes privado, rápido y centrado en archivos Markdown reales.
 
 ## Cómo se organiza
 
-Las notas no se esconden en una base de datos: cada cuenta tiene un directorio privado con sus carpetas y `.md`. La base de datos guarda únicamente la información de la aplicación —usuarios, sesiones, enlaces compartidos, historial y tokens de API—.
+Cada cuenta tiene un directorio privado con sus carpetas y `.md`. La base de datos guarda la información de la aplicación y las notas temporales subidas sin cuenta.
 
 ```text
 espacio privado de cada usuario/
@@ -60,24 +60,32 @@ Los nuevos identificadores tienen seis caracteres y distinguen mayúsculas de mi
 En **Perfil → Acceso API** puedes crear un token personal, que se muestra una única vez y se puede revocar cuando quieras. Con él puedes crear o actualizar notas desde un terminal:
 
 ```bash
-curl --fail-with-body -X PUT \
-  -H "Authorization: Bearer TU_TOKEN" \
-  -H "Content-Type: text/markdown" \
-  --data-binary @apuntes.md \
-  https://mdnotes.net/api/notes/Clase/apuntes.md
+curl --fail-with-body -H "Authorization: Bearer TU_TOKEN" \
+  -F 'file=@file.md' \
+  https://mdnotes.net/api/notes
 ```
 
-- Endpoint: `PUT /api/notes/{ruta}.md`
+- Endpoints: `POST /api/notes` para la raíz; `PUT /api/notes/{ruta}.md` para indicar ruta y carpeta.
 - Autenticación: `Authorization: Bearer mdn_...`
-- Tamaño máximo: 5 MiB por archivo
 - Las carpetas que no existan se crean automáticamente.
 - Cada subida también crea una versión en el historial.
+
+La ruta corta guarda el archivo en la raíz de tu espacio con su nombre original. Para guardarlo en una carpeta, usa `PUT /api/notes/{ruta}.md` y envía el contenido con `--data-binary`.
+
+También puedes publicar una nota temporal sin cuenta ni token. La respuesta del `curl` es la URL pública, lista para copiar:
+
+```bash
+curl --fail-with-body -F 'file=@file.md' \
+  https://mdnotes.net/api/notes
+```
+
+Estas notas son públicas para quien tenga el enlace, caducan a los 30 días y no aparecen en el espacio de ninguna cuenta. No admiten adjuntos. El servidor elimina automáticamente las notas caducadas.
 
 ## Privacidad y seguridad
 
 - Contraseñas con hash y un mínimo de 8 caracteres; el registro también exige nombre de 3 caracteres y correo válido.
 - Recuperación de contraseña y confirmación por código para cambiarla.
-- Espacios de archivos, adjuntos, versiones y enlaces compartidos asociados siempre a su propietario.
+- Los espacios de cuentas, adjuntos, versiones y enlaces compartidos de cuenta están asociados a su propietario. Las notas temporales sin cuenta son públicas mediante su enlace y caducan.
 - El HTML incluido en Markdown se filtra y los enlaces inseguros no se renderizan.
 - Los tokens de API se guardan únicamente como hash.
 - Las exportaciones de cuenta se guardan fuera del directorio público, su enlace usa un token aleatorio guardado como hash y caduca en 24 horas.

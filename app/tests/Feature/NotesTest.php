@@ -42,6 +42,8 @@ class NotesTest extends TestCase
         ]);
         $content = str_repeat('a', 4096);
         $spaces = Mockery::mock(NoteSpace::class);
+        $spaces->shouldReceive('synchronized')->once()->andReturnUsing(fn ($owner, $operation) => $operation());
+        $spaces->shouldReceive('withNoteRollback')->once()->andReturnUsing(fn ($owner, $path, $operation) => $operation());
         $spaces->shouldReceive('write')->once()->withArgs(fn (User $owner, string $path, string $value): bool => $owner->is($user) && $path === 'Clase/Larga.md' && $value === $content);
         $spaces->allows('root')->andReturn($this->mediaPath.'/'.$user->id);
         $this->app->instance(NoteSpace::class, $spaces);
@@ -64,6 +66,8 @@ class NotesTest extends TestCase
         ]);
         $content = '# Guardado automático';
         $spaces = Mockery::mock(NoteSpace::class);
+        $spaces->shouldReceive('synchronized')->once()->andReturnUsing(fn ($owner, $operation) => $operation());
+        $spaces->shouldReceive('withNoteRollback')->once()->andReturnUsing(fn ($owner, $path, $operation) => $operation());
         $spaces->shouldReceive('write')->once()->withArgs(fn (User $owner, string $path, string $value): bool => $owner->is($user) && $path === 'Clase/Auto.md' && $value === $content);
         $spaces->allows('root')->andReturn($this->mediaPath.'/'.$user->id);
         $this->app->instance(NoteSpace::class, $spaces);

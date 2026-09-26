@@ -44,5 +44,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install browser for offline regression tests
+        run: |
+          npm install --prefix /tmp/md-notes-browser playwright@1.62.0
+          /tmp/md-notes-browser/node_modules/.bin/playwright install --with-deps chromium
       - run: node --test app/tests/JavaScript/*.cjs
+        env:
+          MDNOTES_PLAYWRIGHT: /tmp/md-notes-browser/node_modules/playwright
       - run: bash ops/tests/backups.sh

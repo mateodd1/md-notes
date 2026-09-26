@@ -12,12 +12,15 @@ class SharedNote extends Model
         'path',
         'token',
         'expires_at',
+        'content',
+        'content_bytes',
     ];
 
     protected function casts(): array
     {
         return [
             'expires_at' => 'datetime',
+            'content_bytes' => 'integer',
         ];
     }
 

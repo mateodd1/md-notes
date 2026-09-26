@@ -3,10 +3,24 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Str;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 class DocumentationController extends Controller
 {
+    public function raw(): Response
+    {
+        $locale = app()->getLocale() === 'es' ? 'es' : 'en';
+        $document = resource_path($locale === 'es' ? 'docs/documentation.md' : 'docs/documentation.en.md');
+        abort_unless(is_file($document), 404);
+
+        return response((string) file_get_contents($document), 200, [
+            'Content-Type' => 'text/markdown; charset=UTF-8',
+            'Cache-Control' => 'public, max-age=300',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     public function show(): View
     {
         $locale = app()->getLocale() === 'es' ? 'es' : 'en';

@@ -6,6 +6,7 @@ use App\Http\Controllers\NoteMediaController;
 use App\Http\Controllers\NotePdfController;
 use App\Http\Controllers\NotesController;
 use App\Http\Controllers\NoteVersionController;
+use App\Http\Controllers\OfflineController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ShareController;
 use App\Http\Controllers\SitemapController;
@@ -20,6 +21,7 @@ Route::domain($separateWorkspace ? $publicHost : null)->group(function () use ($
     Route::view('/', 'welcome')->name('home');
     Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
     Route::get('/documentation.md', [DocumentationController::class, 'show'])->name('documentation');
+    Route::get('/documentation.raw.md', [DocumentationController::class, 'raw'])->name('documentation.raw');
     if ($separateWorkspace) {
         Route::get('/share/{token}/media/{filename}', [ShareController::class, 'redirectMediaToWorkspace'])
             ->where('token', ShareTokens::ROUTE_PATTERN)
@@ -32,6 +34,9 @@ Route::domain($separateWorkspace ? $publicHost : null)->group(function () use ($
 });
 
 Route::domain($separateWorkspace ? $workspaceHost : null)->group(function () use ($separateWorkspace): void {
+
+    Route::get('/offline', [OfflineController::class, 'shell'])->name('offline.shell');
+    Route::get('/offline-worker.js', [OfflineController::class, 'worker'])->name('offline.worker');
 
     Route::get('/account-export/{token}', [ProfileController::class, 'downloadAccountExport'])
         ->where('token', '[a-f0-9]{64}')
@@ -83,6 +88,8 @@ Route::domain($separateWorkspace ? $workspaceHost : null)->group(function () use
     });
 
     Route::middleware(['auth', 'verified'])->prefix($separateWorkspace ? '' : 'app')->group(function (): void {
+        Route::get('/offline/session', [OfflineController::class, 'session'])->name('offline.session');
+        Route::post('/offline/sync', [OfflineController::class, 'sync'])->middleware('throttle:120,1,offline.sync:')->name('offline.sync');
         Route::get('/', [NotesController::class, 'index'])->name('notes.index');
         Route::get('/search', [NotesController::class, 'search'])->middleware('throttle:60,1,notes.search:')->name('notes.search');
         Route::get('/quota', [NotesController::class, 'quota'])->middleware('throttle:15,1,quota.show:')->name('quota.show');

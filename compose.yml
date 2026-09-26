@@ -17,6 +17,24 @@ services:
     networks:
       - nginx-pm_default
 
+  scheduler:
+    image: md-notes-app
+    container_name: md-notes-scheduler
+    restart: unless-stopped
+    command: ["php", "artisan", "schedule:work"]
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+    volumes:
+      - ./app:/var/www/html
+    networks:
+      - nginx-pm_default
+
   db:
     image: mysql:8.4
     container_name: md-notes-db

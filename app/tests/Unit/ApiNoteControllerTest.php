@@ -58,6 +58,7 @@ class ApiNoteControllerTest extends TestCase
     {
         $user = $this->user();
         $spaces = Mockery::mock(NoteSpace::class);
+        $spaces->shouldReceive('synchronized')->once()->andReturnUsing(fn ($user, $operation) => $operation());
         $spaces->shouldReceive('writeFromApi')->once()->andThrow(new RuntimeException(''));
         $request = $this->request('# Apuntes');
         $request->setUserResolver(fn (): User => $user);
@@ -102,6 +103,7 @@ class ApiNoteControllerTest extends TestCase
     private function successfulController(string $expectedContent): ApiNoteController
     {
         $spaces = Mockery::mock(NoteSpace::class);
+        $spaces->shouldReceive('synchronized')->once()->andReturnUsing(fn ($user, $operation) => $operation());
         $spaces->shouldReceive('writeFromApi')->once()->withArgs(fn (User $user, string $path, string $content, bool $snapshot): bool => $user->getKey() === 1 && $path === 'Clase/apuntes.md' && $content === $expectedContent && $snapshot)->andReturn(true);
         $history = Mockery::mock(NoteVersionHistory::class);
         $history->shouldReceive('record')->once()->withArgs(fn (User $user, string $path, string $content): bool => $user->getKey() === 1 && $path === 'Clase/apuntes.md' && $content === $expectedContent);

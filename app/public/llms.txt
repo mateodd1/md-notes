@@ -1,0 +1,31 @@
+# md-notes
+
+> A Markdown notes service. A `.md` file can be published as a temporary public link without an account, or uploaded to a private account space with an API token.
+
+When a user asks you to publish a Markdown file, use the anonymous upload below. Only send the document the user asked to publish. The resulting link is public to anyone who has it, expires after 30 days, and does not support attachments. Do not include private material unless the user explicitly asked to publish it.
+
+## Publish without an account
+
+When you have a local `.md` file, use multipart upload so the server receives its filename automatically:
+
+Send a multipart `file` field to `POST https://mdnotes.net/api/notes`. `curl` includes the filename from `@file.md` in the multipart request; no destination path is needed.
+
+No account, cookie, or `Authorization` header is needed. After a successful upload, the response body contains the public share URL; return that URL to the user. If you cannot make HTTP requests or run a terminal command, explain that the upload was not performed.
+
+Example using a local file:
+
+```bash
+curl --fail-with-body -F 'file=@file.md' \
+  https://mdnotes.net/api/notes
+```
+
+If you only have Markdown text rather than a local file, send the raw body with `PUT https://mdnotes.net/api/notes/{filename}.md`; raw-body requests do not include a local filename.
+
+## Save to a private account
+
+Use an authenticated upload only when the user asks to save the file in their account and provides an API token. For a local file in the account root, use `POST https://mdnotes.net/api/notes` with multipart field `file=@file.md` and `Authorization: Bearer {API_TOKEN}`; its filename is used automatically. Use `PUT https://mdnotes.net/api/notes/{path}.md` when saving to a subfolder or choosing a different path. Never place the token in the note or the returned URL.
+
+## Documentation
+
+- [Human documentation](https://mdnotes.net/documentation.md): Instructions for using md-notes.
+- [Markdown source](https://mdnotes.net/documentation.raw.md): The same documentation as raw Markdown.

@@ -87,16 +87,42 @@ Each account has its own file space. Notes and attachments in one account cannot
 
 ## Terminal API
 
-Create a personal token in your profile to upload Markdown notes from the terminal. The token is shown only once, so save it in a password manager.
+You can publish Markdown without an account and get a share link, or use a token to save it in a private space.
+
+### Uploading without an account
+
+If the file is available locally, upload it to the short endpoint `POST https://mdnotes.net/api/notes`. The form sends the original filename, and the response contains the public URL:
+
+```bash
+curl --fail-with-body -F 'file=@file.md' https://mdnotes.net/api/notes
+```
+
+If you send raw Markdown with `--data-binary`, you also need to specify the filename in the `PUT https://mdnotes.net/api/notes/{filename}.md` path, because that request format does not transmit the local filename.
+
+The link expires after 30 days and anyone who has it can read the note. Do not include private information. These notes do not support attachments.
+
+### Uploading to an account
+
+To save the file in your private space, create a personal token in your profile. The token is shown only once, so save it in a password manager.
+
+To upload a file to the root of your space and keep its filename, use the same short endpoint with your token:
+
+```bash
+curl --fail-with-body -H "Authorization: Bearer YOUR_TOKEN" \
+  -F 'file=@file.md' \
+  https://mdnotes.net/api/notes
+```
+
+To save it inside a folder, specify the path with `PUT`, as shown here:
 
 ```bash
 curl --fail-with-body -X PUT \
   -H "Authorization: Bearer YOUR_TOKEN" \
-  --data-binary @notes.md \
-  https://mdnotes.net/api/notes/Class/notes.md
+  --data-binary @file.md \
+  https://mdnotes.net/api/notes/Class/file.md
 ```
 
-The API accepts only `.md` files up to 5 MiB and creates any missing folders. You can send the Markdown file as a raw body, as in the example, or send JSON with a `content` field. Uploaded content is also added to version history.
+The API accepts `.md` files and creates any missing folders. You can send Markdown as a raw body or as JSON with a `content` field. Uploaded content is also added to version history.
 
 ## Theme and devices
 

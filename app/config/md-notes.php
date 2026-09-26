@@ -10,6 +10,8 @@ return [
 
     'workspace_url' => rtrim((string) env('MD_NOTES_WORKSPACE_URL', env('APP_URL', 'http://localhost')), '/'),
 
+    'anonymous_notes_max_bytes' => (int) env('MD_NOTES_ANONYMOUS_NOTES_MAX_BYTES', 512 * 1024 * 1024),
+
     'legacy_hosts' => array_values(array_filter(array_map(
         'trim',
         explode(',', (string) env('MD_NOTES_LEGACY_HOSTS', 'md.mateo.ovh')),

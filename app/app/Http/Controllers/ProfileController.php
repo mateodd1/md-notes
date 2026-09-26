@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\AccountExportReadyMail;
 use App\Mail\AccountDeletedMail;
+use App\Mail\AccountExportReadyMail;
 use App\Models\ApiToken;
 use App\Services\AccountExports;
 use App\Services\ApiTokens;
@@ -171,7 +171,7 @@ class ProfileController extends Controller
             report($exception);
         }
 
-        return redirect()->route('login')->with('status', __('ui.account_deleted'));
+        return redirect()->route('login')->with('status', __('ui.account_deleted'))->header('Clear-Site-Data', '"cache", "storage"');
     }
 
     public function requestAccountExport(Request $request): RedirectResponse

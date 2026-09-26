@@ -107,9 +107,9 @@ class ShareController extends Controller
     public function show(string $token): View
     {
         $share = $this->activeShare($token);
-        $content = $this->spaces->read($share->user, $share->path);
+        $content = $this->contentFor($share);
         $title = Str::beforeLast(basename($share->path), '.');
-        $rendered = Str::markdown($this->mediaUrls->forShare($share, $content), [
+        $rendered = Str::markdown($share->user_id === null ? $content : $this->mediaUrls->forShare($share, $content), [
             'html_input' => 'strip',
             'allow_unsafe_links' => false,
             'renderer' => ['soft_break' => "<br>\n"],
@@ -120,6 +120,7 @@ class ShareController extends Controller
             'title' => $title,
             'rendered' => $rendered,
             'showFileTitle' => preg_match('/<h1(?:\s[^>]*)?>/i', $rendered) !== 1,
+            'expirationLabel' => $share->user_id === null ? $this->anonymousExpirationLabel($share) : null,
         ]);
     }
 
@@ -139,7 +140,8 @@ class ShareController extends Controller
     public function media(string $token, string $filename): BinaryFileResponse
     {
         $share = $this->activeShare($token);
-        $content = $this->spaces->read($share->user, $share->path);
+        abort_if($share->user_id === null, 404);
+        $content = $this->contentFor($share);
 
         abort_unless($this->mediaUrls->isReferenced($filename, $content), 404);
 
@@ -159,7 +161,7 @@ class ShareController extends Controller
     public function copyToSpace(Request $request, string $token): RedirectResponse
     {
         $share = $this->activeShare($token);
-        $content = $this->spaces->read($share->user, $share->path);
+        $content = $this->contentFor($share);
         $recipient = $request->user();
         $attachments = [];
 
@@ -167,8 +169,10 @@ class ShareController extends Controller
             $destination = $this->spaces->synchronized($recipient, function () use ($recipient, $share, $content, &$attachments): string {
                 $destination = $this->spaces->copyDestination($recipient, $share->path);
                 $this->spaces->withNoteRollback($recipient, $destination, function () use ($recipient, $share, $content, $destination, &$attachments): void {
-                    $attachments = $this->media->copyReferenced($share->user, $recipient, $content);
-                    $content = $this->mediaUrls->forAuthenticatedUser($content, $attachments);
+                    if ($share->user_id !== null) {
+                        $attachments = $this->media->copyReferenced($share->user, $recipient, $content);
+                        $content = $this->mediaUrls->forAuthenticatedUser($content, $attachments);
+                    }
                     $this->spaces->write($recipient, $destination, $content, snapshot: true);
                     $this->history->record($recipient, $destination, $content);
                 });
@@ -176,7 +180,7 @@ class ShareController extends Controller
                 return $destination;
             });
         } catch (\Throwable $exception) {
-            if (! $share->user->is($recipient)) {
+            if (! $share->user?->is($recipient)) {
                 $this->media->removeCopied($recipient, array_values($attachments));
             }
 
@@ -217,6 +221,49 @@ class ShareController extends Controller
         }
 
         return $share;
+    }
+
+    private function contentFor(SharedNote $share): string
+    {
+        return $share->user_id === null
+            ? (string) $share->content
+            : $this->spaces->read($share->user, $share->path);
+    }
+
+    private function anonymousExpirationLabel(SharedNote $share): ?string
+    {
+        if (! $share->expires_at) {
+            return null;
+        }
+
+        $seconds = max(0, $share->expires_at->getTimestamp() - now()->getTimestamp());
+        $days = intdiv($seconds, 86400);
+        $hours = intdiv($seconds % 86400, 3600);
+
+        if ($days > 0 && $hours > 0) {
+            return __('ui.shared_note_expires_days_hours', [
+                'days' => $days,
+                'day_unit' => trans_choice('ui.shared_day_unit', $days),
+                'hours' => $hours,
+                'hour_unit' => trans_choice('ui.shared_hour_unit', $hours),
+            ]);
+        }
+
+        if ($days > 0) {
+            return __('ui.shared_note_expires_days', [
+                'days' => $days,
+                'day_unit' => trans_choice('ui.shared_day_unit', $days),
+            ]);
+        }
+
+        if ($hours > 0) {
+            return __('ui.shared_note_expires_hours', [
+                'hours' => $hours,
+                'hour_unit' => trans_choice('ui.shared_hour_unit', $hours),
+            ]);
+        }
+
+        return __('ui.shared_note_expires_less_than_hour');
     }
 
     private function permanentRedirectWithQuery(Request $request, string $url): RedirectResponse

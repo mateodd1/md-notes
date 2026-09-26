@@ -45,6 +45,21 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('shares-read', fn (Request $request): array => $this->shareLimits($request, 60));
         RateLimiter::for('shares-media', fn (Request $request): array => $this->shareLimits($request, 120));
         RateLimiter::for('shares-copy', fn (Request $request): array => $this->shareLimits($request, 20));
+        RateLimiter::for('api-notes-upload', function (Request $request): array {
+            $ip = 'ip:'.$request->ip();
+
+            if (! $request->headers->has('Authorization')) {
+                return [
+                    Limit::perMinute(3)->by('anonymous-minute:'.$ip),
+                    Limit::perDay(20)->by('anonymous-day:'.$ip),
+                ];
+            }
+
+            return [
+                Limit::perMinute(60)->by('authenticated:'.hash('sha256', (string) $request->bearerToken())),
+                Limit::perMinute(60)->by('authenticated-ip:'.$ip),
+            ];
+        });
     }
 
     private function emailKey(Request $request): string

@@ -87,16 +87,42 @@ Cada cuenta tiene su propio espacio de archivos. Las notas y adjuntos de una cue
 
 ## API desde terminal
 
-En el perfil puedes crear un token personal para subir notas Markdown desde la terminal. El token solo se muestra una vez; guárdalo en un gestor de contraseñas.
+Puedes publicar un Markdown sin cuenta y obtener un enlace, o usar un token para guardarlo en un espacio privado.
+
+### Subir sin cuenta
+
+Si tienes el archivo en el equipo, puedes subirlo a la ruta corta `POST https://mdnotes.net/api/notes`. El formulario transmite el nombre original del archivo y la respuesta contiene directamente la URL pública:
+
+```bash
+curl --fail-with-body -F 'file=@file.md' https://mdnotes.net/api/notes
+```
+
+Si envías el contenido Markdown en crudo con `--data-binary`, tendrás que indicar también el nombre en la ruta `PUT https://mdnotes.net/api/notes/{nombre}.md`, porque esa forma de envío no transmite el nombre del archivo local.
+
+El enlace caduca a los 30 días y cualquiera que lo tenga puede leer la nota. No incluyas información privada. Estas notas no admiten adjuntos.
+
+### Subir a una cuenta
+
+Para guardar el archivo en tu espacio privado, crea un token personal en el perfil. El token solo se muestra una vez; guárdalo en un gestor de contraseñas.
+
+Para subir un archivo a la raíz de tu espacio y conservar su nombre, usa la misma ruta corta con el token:
+
+```bash
+curl --fail-with-body -H "Authorization: Bearer TU_TOKEN" \
+  -F 'file=@file.md' \
+  https://mdnotes.net/api/notes
+```
+
+Si quieres guardarlo dentro de una carpeta, indica la ruta con `PUT`, como en este ejemplo:
 
 ```bash
 curl --fail-with-body -X PUT \
   -H "Authorization: Bearer TU_TOKEN" \
-  --data-binary @apuntes.md \
-  https://mdnotes.net/api/notes/Clase/apuntes.md
+  --data-binary @file.md \
+  https://mdnotes.net/api/notes/Clase/file.md
 ```
 
-La API acepta únicamente archivos `.md` de hasta 5 MiB y crea las carpetas necesarias. Puedes enviar el archivo Markdown en crudo, como en el ejemplo, o enviar JSON con un campo `content`. El contenido subido también entra en el historial de versiones.
+La API acepta archivos `.md` y crea las carpetas necesarias. Puedes enviar el Markdown en crudo o como JSON con un campo `content`. El contenido también entra en el historial de versiones.
 
 ## Tema y dispositivos
 
