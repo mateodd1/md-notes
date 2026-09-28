@@ -16,9 +16,7 @@ class NoteVersionHistory
     public function __construct(
         private readonly NoteMedia $media,
         private readonly StorageQuota $quota,
-    )
-    {
-    }
+    ) {}
 
     public function record(User $user, string $path, string $content): void
     {
@@ -74,10 +72,13 @@ class NoteVersionHistory
 
     public function pruneExpired(): void
     {
-        NoteVersion::query()->where('created_at', '<', now()->subDays(self::RETENTION_DAYS))->delete();
-
         User::query()->cursor()->each(function (User $user): void {
-            $this->media->pruneUnreferenced($user);
+            app(NoteSpace::class)->synchronized($user, function () use ($user): void {
+                NoteVersion::query()->where('user_id', $user->getKey())
+                    ->where('created_at', '<', now()->subDays(self::RETENTION_DAYS))->delete();
+
+                $this->media->pruneUnreferenced($user);
+            });
         });
     }
 

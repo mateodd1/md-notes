@@ -28,6 +28,7 @@
             this.available = false;
             this.lastError = '';
             this.syncing = null;
+            this.writing = Promise.resolve();
             this.ready = this.start();
         }
         async start() {
@@ -61,6 +62,11 @@
             while (this.aliases.has(path) && !seen.has(path)) { seen.add(path); path = this.aliases.get(path); }
             return path;
         }
+        writeLocal(operation) {
+            const writing = this.writing.then(operation);
+            this.writing = writing.catch(() => {});
+            return writing;
+        }
         async prune(paths) {
             if (!await this.ready) return;
             const valid = new Set(paths);
@@ -84,43 +90,54 @@
         }
         async remember(path, content, revision) {
             if (!await this.ready) return null;
-            const note = await db.note(this.config.account, path, previous => previous?.dirty ? previous : {
-                path, content, baseContent: content, revision, dirty: false, changeId: null, snapshot: false, updatedAt: Date.now(),
+            return this.writeLocal(async () => {
+                const note = await db.note(this.config.account, path, previous => previous?.dirty ? previous : {
+                    path, content, baseContent: content, revision, dirty: false, changeId: null, snapshot: false, updatedAt: Date.now(),
+                });
+                // A fresh server document selects its own path, not an earlier recovery destination.
+                this.aliases.delete(path);
+                this.known.set(path, { changeId: note.changeId, revision: note.revision, baseContent: note.baseContent });
+                return note;
             });
-            this.known.set(path, { changeId: note.changeId, revision: note.revision, baseContent: note.baseContent });
-            return note;
         }
         async load(path) {
             if (!await this.ready) return null;
-            const note = await db.note(this.config.account, this.resolve(path));
-            if (note) this.known.set(note.path, { changeId: note.changeId, revision: note.revision, baseContent: note.baseContent });
-            return note;
+            return this.writeLocal(async () => {
+                const note = await db.note(this.config.account, this.resolve(path));
+                if (note) this.known.set(note.path, { changeId: note.changeId, revision: note.revision, baseContent: note.baseContent });
+                return note;
+            });
         }
         async queue(path, content, snapshot = false) {
             if (!await this.ready) throw Error(this.t.unavailable);
-            path = this.resolve(path);
             if (new TextEncoder().encode(content).length > 5 * 1024 * 1024) throw Error(this.t.too_large);
-            const known = this.known.get(path);
-            try {
-                const note = await db.note(this.config.account, path, previous => {
-                    if (!previous || !known) throw Error(this.t.not_cached);
-                    if (previous.dirty && previous.changeId !== known.changeId && previous.content !== content) throw Error(this.t.other_tab);
-                    if (previous.content === content && (!snapshot || previous.snapshot)) return previous;
-                    return {
-                        ...previous, content, revision: known.revision, baseContent: known.baseContent,
-                        dirty: content !== known.baseContent || snapshot,
-                        snapshot: snapshot || previous.snapshot,
-                        changeId: crypto.randomUUID(), updatedAt: Date.now(),
-                    };
-                });
-                this.known.set(path, { changeId: note.changeId, revision: note.revision, baseContent: note.baseContent });
-                this.notify();
-                return note;
-            } catch (error) {
-                if (['QuotaExceededError', 'UnknownError', 'AbortError'].includes(error.name)) throw Error(this.t.storage_failed);
-                if (error.message === 'account_changed') throw Error(this.t.account_changed);
-                throw error;
-            }
+            return this.writeLocal(async () => {
+                path = this.resolve(path);
+                const known = this.known.get(path);
+                try {
+                    const note = await db.note(this.config.account, path, previous => {
+                        if (!previous || !known) throw Error(this.t.not_cached);
+                        if (previous.dirty && previous.changeId !== known.changeId && previous.content !== content) throw Error(this.t.other_tab);
+                        if (previous.content === content && (!snapshot || previous.snapshot)) return previous;
+                        // Only a real mutation ID proves that another tab acknowledged this editor's text.
+                        // Two freshly opened documents both have null IDs, but may be different revisions.
+                        const base = known.changeId && previous.changeId === known.changeId ? previous : known;
+                        return {
+                            ...previous, content, revision: base.revision, baseContent: base.baseContent,
+                            dirty: content !== base.baseContent || snapshot,
+                            snapshot: snapshot || previous.snapshot,
+                            changeId: crypto.randomUUID(), updatedAt: Date.now(),
+                        };
+                    });
+                    this.known.set(path, { changeId: note.changeId, revision: note.revision, baseContent: note.baseContent });
+                    this.notify();
+                    return note;
+                } catch (error) {
+                    if (['QuotaExceededError', 'UnknownError', 'AbortError'].includes(error.name)) throw Error(this.t.storage_failed);
+                    if (error.message === 'account_changed') throw Error(this.t.account_changed);
+                    throw error;
+                }
+            });
         }
         async save(path, content, snapshot) {
             await this.queue(path, content, snapshot);
@@ -145,6 +162,7 @@
                 if (!session.ok) throw Error(this.t.error);
                 const identity = await session.json();
                 if (identity.account !== this.config.account) throw Error(this.t.account_changed);
+                let noteError = '';
                 for (const sent of pending) {
                     const current = await db.note(this.config.account, sent.path);
                     if (!current?.dirty || current.changeId !== sent.changeId) continue;
@@ -154,24 +172,34 @@
                         body: JSON.stringify({ account: this.config.account, path: sent.path, content: sent.content, revision: sent.revision, change_id: sent.changeId, snapshot: sent.snapshot }),
                     });
                     const result = await response.json().catch(() => ({}));
-                    if (!response.ok) throw Error([401, 403, 419].includes(response.status) ? this.t.login_required : result.message || this.t.error);
+                    if (!response.ok) {
+                        if ([401, 403, 419].includes(response.status)) throw Error(this.t.login_required);
+                        if (result.code === 'account_changed') throw Error(this.t.account_changed);
+                        const message = result.message || this.t.error;
+                        // Validation/conflict errors belong to one draft; keep it and send the others.
+                        // Authentication, throttling and server/network failures stop the batch.
+                        if ([409, 422].includes(response.status)) { noteError ||= message; continue; }
+                        throw Error(message);
+                    }
                     if (!result.revision || !result.path || !result.savedAt) throw Error(this.t.error);
-                    const acknowledged = await db.note(this.config.account, sent.path, latest => {
-                        if (!latest) return null;
-                        const dirty = latest.changeId !== sent.changeId;
-                        return { ...latest, path: result.path, baseContent: sent.content, revision: result.revision, dirty, snapshot: dirty && latest.snapshot };
+                    await this.writeLocal(async () => {
+                        const acknowledged = await db.note(this.config.account, sent.path, latest => {
+                            if (!latest) return null;
+                            const dirty = latest.changeId !== sent.changeId;
+                            return { ...latest, path: result.path, baseContent: sent.content, revision: result.revision, dirty, snapshot: dirty && latest.snapshot };
+                        });
+                        if (acknowledged && this.known.get(sent.path)?.changeId === acknowledged.changeId) {
+                            this.known.set(result.path, { changeId: acknowledged.changeId, revision: result.revision, baseContent: sent.content });
+                        }
+                        if (result.conflict) {
+                            this.aliases.set(sent.path, result.path);
+                            this.known.delete(sent.path);
+                            window.dispatchEvent(new CustomEvent('md-offline-conflict', { detail: { source: sent.path, ...result } }));
+                        }
+                        window.dispatchEvent(new CustomEvent('md-offline-synced', { detail: { source: sent.path, ...result } }));
                     });
-                    if (acknowledged && this.known.get(sent.path)?.changeId === acknowledged.changeId) {
-                        this.known.set(result.path, { changeId: acknowledged.changeId, revision: result.revision, baseContent: sent.content });
-                    }
-                    if (result.conflict) {
-                        this.aliases.set(sent.path, result.path);
-                        this.known.delete(sent.path);
-                        window.dispatchEvent(new CustomEvent('md-offline-conflict', { detail: { source: sent.path, ...result } }));
-                    }
-                    window.dispatchEvent(new CustomEvent('md-offline-synced', { detail: { source: sent.path, ...result } }));
                 }
-                this.lastError = '';
+                this.lastError = noteError;
             } catch (error) {
                 this.lastError = error.message === 'account_changed' ? this.t.account_changed
                     : ['TypeError', 'TimeoutError', 'AbortError'].includes(error.name) ? this.t.error : error.message;
@@ -221,6 +249,7 @@
     window.MdNotesOffline = OfflineNotes;
     if (window.mdNotesOfflineConfig) {
         window.mdOffline = new OfflineNotes(window.mdNotesOfflineConfig);
+        let leaving = false;
         // Applies on profile pages too. Never discard pending drafts on logout or account deletion.
         document.addEventListener('submit', async event => {
             const form = event.target;
@@ -229,20 +258,34 @@
             const logout = url.pathname.endsWith('/logout');
             const deleting = url.pathname.endsWith('/settings') && form.querySelector('[name="_method"]')?.value === 'DELETE';
             if (!logout && !deleting) return;
-            if (!window.mdOffline.available) return;
             event.preventDefault(); event.stopImmediatePropagation();
-            await window.mdOffline.sync();
-            if ((await db.all()).some(note => note.dirty)) {
-                window.dispatchEvent(new CustomEvent('md-offline-warning', { detail: window.mdOffline.t.logout_pending }));
+            if (leaving) return;
+            leaving = true;
+            const wasInert = document.body.inert;
+            document.body.inert = true;
+            try {
+                const offlineReady = await window.mdOffline.ready;
+                // Flush the editor's debounce first, and prevent further typing during the request.
+                if (window.mdOffline.prepareToLeave && !await window.mdOffline.prepareToLeave()) throw Error(window.mdOffline.t.logout_pending);
+                if (offlineReady) {
+                    await window.mdOffline.sync();
+                    await window.mdOffline.writing;
+                    if ((await db.all()).some(note => note.dirty)) throw Error(window.mdOffline.t.logout_pending);
+                    await db.clear(); await window.mdOffline.clearMedia();
+                }
+                form.dataset.offlineCleared = 'true';
+                HTMLFormElement.prototype.submit.call(form);
+            } catch (error) {
+                const message = error.message || window.mdOffline.t.logout_pending;
+                window.dispatchEvent(new CustomEvent('md-offline-warning', { detail: message }));
                 let warning = document.getElementById('offline-logout-warning');
                 if (!warning) { warning = document.createElement('div'); warning.id = 'offline-logout-warning'; warning.className = 'toast error'; warning.setAttribute('role', 'alert'); document.body.append(warning); }
-                warning.textContent = window.mdOffline.t.logout_pending;
+                warning.textContent = message;
                 setTimeout(() => warning.remove(), 6000);
-                return;
+            } finally {
+                if (!form.dataset.offlineCleared) document.body.inert = wasInert;
+                leaving = false;
             }
-            await db.clear(); await window.mdOffline.clearMedia();
-            form.dataset.offlineCleared = 'true';
-            HTMLFormElement.prototype.submit.call(form);
         }, true);
     }
 })();

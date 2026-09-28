@@ -41,17 +41,26 @@ class ShareController extends Controller
 
         $share = null;
         for ($attempt = 0; $attempt < 10; $attempt++) {
+            $token = $this->tokens->generate();
+            if ($this->tokens->exists($token)) {
+                continue;
+            }
+
             try {
                 $share = SharedNote::query()->create([
                     'user_id' => $request->user()->getKey(),
                     'path' => $data['path'],
-                    'token' => $this->tokens->generate(),
+                    ...$this->tokens->storedAttributes($token),
                     'expires_at' => $expiresAt,
                 ]);
 
                 break;
             } catch (UniqueConstraintViolationException) {
                 // Retry token collisions on both MySQL and SQLite.
+            } catch (QueryException $exception) {
+                if (! $this->tokens->exists($token)) {
+                    throw $exception;
+                }
             }
         }
 
@@ -214,7 +223,7 @@ class ShareController extends Controller
 
     private function activeShare(string $token): SharedNote
     {
-        $share = SharedNote::query()->with('user')->where('token', $token)->firstOrFail();
+        $share = $this->tokens->find($token) ?? abort(404);
 
         if ($share->expires_at?->isPast()) {
             $share->delete();

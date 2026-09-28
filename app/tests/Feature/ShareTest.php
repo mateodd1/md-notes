@@ -6,6 +6,8 @@ use App\Models\SharedNote;
 use App\Models\User;
 use App\Services\NoteSpace;
 use App\Services\ShareTokens;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Mockery;
 use Tests\TestCase;
@@ -39,7 +41,7 @@ class ShareTest extends TestCase
             'is_admin' => true,
         ]);
         $spaces = Mockery::mock(NoteSpace::class);
-        $spaces->shouldReceive('read')->once()->andReturn('# Apuntes');
+        $spaces->shouldReceive('read')->twice()->andReturn('# Apuntes');
         $this->app->instance(NoteSpace::class, $spaces);
 
         $response = $this->withSession(['_token' => 'test-token'])
@@ -57,6 +59,12 @@ class ShareTest extends TestCase
         $this->assertMatchesRegularExpression('/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz]{6}$/', $share->token);
         $this->assertTrue($share->expires_at->isFuture());
         $response->assertSessionHas('share_url', app(ShareTokens::class)->publicUrl($share->token));
+        $stored = DB::table('shared_notes')->where('id', $share->id)->first();
+        $this->assertNull($stored->token);
+        $this->assertSame(app(ShareTokens::class)->digest($share->token), $stored->token_hash);
+        $this->assertNotSame($share->token, $stored->token_encrypted);
+        $this->assertSame($share->token, Crypt::decryptString($stored->token_encrypted));
+        $this->get(route('shares.show', ['token' => $share->token]))->assertOk();
     }
 
     public function test_a_share_link_renders_the_note_without_authentication(): void

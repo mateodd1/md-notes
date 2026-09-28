@@ -126,7 +126,7 @@ class AccountExports
             $zip->addFromString('shared-links.json', $this->json(SharedNote::query()
                 ->where('user_id', $user->getKey())
                 ->orderBy('id')
-                ->get(['path', 'token', 'expires_at', 'created_at'])
+                ->get(['path', 'token', 'token_encrypted', 'expires_at', 'created_at'])
                 ->map(fn (SharedNote $share): array => [
                     'path' => $share->path,
                     'url' => app(ShareTokens::class)->publicUrl($share->token),

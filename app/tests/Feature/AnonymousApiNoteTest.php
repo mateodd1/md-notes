@@ -6,6 +6,8 @@ use App\Models\SharedNote;
 use App\Models\User;
 use App\Services\NoteSpace;
 use App\Services\ShareTokens;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -42,6 +44,10 @@ class AnonymousApiNoteTest extends TestCase
         $this->assertSame(strlen($share->content), $share->content_bytes);
         $this->assertGreaterThan(29.99, now()->diffInDays($share->expires_at));
         $this->assertSame(0, User::query()->count());
+        $stored = DB::table('shared_notes')->where('id', $share->id)->first();
+        $this->assertNull($stored->token);
+        $this->assertSame(app(ShareTokens::class)->digest($share->token), $stored->token_hash);
+        $this->assertSame($share->token, Crypt::decryptString($stored->token_encrypted));
 
         $this->get(route('shares.show', ['token' => $share->token]))
             ->assertOk()

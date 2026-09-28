@@ -4,10 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\NoteVersion;
 use App\Models\User;
+use App\Services\NoteMedia;
 use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
 use App\Services\StorageQuota;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
 use Mockery;
 use Tests\TestCase;
@@ -365,6 +368,62 @@ class NotesTest extends TestCase
         $history->pruneExpired();
 
         $this->assertDatabaseMissing('note_versions', ['id' => $expired->id]);
+    }
+
+    public function test_scheduled_version_cleanup_removes_expired_history_but_preserves_referenced_and_pending_attachments(): void
+    {
+        $this->freezeTime();
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $spaces = app(NoteSpace::class);
+        $media = app(NoteMedia::class);
+        $filenames = [];
+        foreach (['expired', 'recent', 'live', 'trash'] as $name) {
+            $filenames[$name] = $media->store($user, UploadedFile::fake()->create($name.'.pdf', 1));
+        }
+        $spaces->write($user, 'Live.md', '[File](/media/'.$filenames['live'].')');
+        $spaces->write($user, 'Deleted.md', '[File](/media/'.$filenames['trash'].')');
+        $spaces->trash($user, 'Deleted.md');
+        $expired = NoteVersion::query()->create([
+            'user_id' => $user->id, 'path' => 'Old.md',
+            'content' => '[Old](/media/'.$filenames['expired'].') [Still used](/media/'.$filenames['live'].')',
+        ]);
+        $expired->forceFill(['created_at' => now()->subDays(8)])->save();
+        $otherExpired = NoteVersion::query()->create(['user_id' => $other->id, 'path' => 'Old.md', 'content' => 'Expired']);
+        $otherExpired->forceFill(['created_at' => now()->subDays(8)])->save();
+        $recent = NoteVersion::query()->create([
+            'user_id' => $user->id, 'path' => 'History.md', 'content' => '[Recent](/media/'.$filenames['recent'].')',
+        ]);
+        $this->travel(25)->hours();
+        $pending = $media->store($user, UploadedFile::fake()->create('pending.pdf', 1));
+        $usedBefore = app(StorageQuota::class)->used($user);
+
+        $this->artisan('versions:prune')->assertSuccessful();
+
+        $this->assertDatabaseMissing('note_versions', ['id' => $expired->id]);
+        $this->assertDatabaseMissing('note_versions', ['id' => $otherExpired->id]);
+        $this->assertDatabaseHas('note_versions', ['id' => $recent->id]);
+        $directory = $spaces->root($user).'/.md-notes-media/';
+        $this->assertFileDoesNotExist($directory.$filenames['expired']);
+        foreach (['recent', 'live', 'trash'] as $name) {
+            $this->assertFileExists($directory.$filenames[$name]);
+        }
+        $this->assertFileExists($directory.$pending);
+        $this->assertLessThan($usedBefore, app(StorageQuota::class)->used($user));
+    }
+
+    public function test_version_cleanup_is_due_every_hour_but_not_between_hours(): void
+    {
+        $events = array_values(array_filter(
+            app(Schedule::class)->events(),
+            fn ($event): bool => str_contains($event->command ?? '', 'versions:prune'),
+        ));
+        $this->assertCount(1, $events);
+
+        foreach (['12:00:00' => true, '12:30:00' => false, '13:00:00' => true] as $time => $due) {
+            $this->travelTo(Carbon::parse('2026-09-28 '.$time, config('app.timezone')));
+            $this->assertSame($due, $events[0]->isDue($this->app));
+        }
     }
 
     public function test_trashing_and_restoring_a_note_preserves_its_version_history(): void

@@ -182,17 +182,46 @@ test('offline reload, local persistence, reconnection, conflicts, sanitization a
         await page.locator('#offline-save').click();
         await page.waitForFunction(() => document.getElementById('offline-message').textContent.includes('another account'));
         assert.equal(sent.length, before);
+        remote = '# Cached note\n\nOriginal';
         await page.goto(origin + '/app/Note.md');
         await eventually(() => page.evaluate(async () => (await MdNotesOfflineDB.meta())?.account === 'b'.repeat(64)));
         assert(!(await page.evaluate(async () => JSON.stringify(await MdNotesOfflineDB.all()))).includes('Previous account private draft'));
-        await page.locator('.profile-menu summary').click();
-        await page.locator('.profile-popover form button').click();
+
+        // Logout must flush the editor before its 350ms debounce, and stay put if syncing fails.
+        failSync = true;
+        await page.locator('#edit-note').click();
+        await page.evaluate(() => {
+            const editor = document.getElementById('editor');
+            editor.value = 'Draft retained when logout fails';
+            editor.dispatchEvent(new Event('input', { bubbles: true }));
+            document.querySelector('.profile-popover form').requestSubmit();
+        });
+        await page.waitForFunction(() => document.getElementById('offline-logout-warning') && !document.body.inert);
+        assert.equal(requests.includes('/logout'), false);
+        assert.equal(await page.locator('#editor').inputValue(), 'Draft retained when logout fails');
+        assert.equal(await page.evaluate(async () => (await MdNotesOfflineDB.all())[0].content), 'Draft retained when logout fails');
+        assert.equal(await page.evaluate(async () => (await MdNotesOfflineDB.all())[0].dirty), true);
+
+        failSync = false; holdResponse = true;
+        await page.evaluate(() => {
+            const editor = document.getElementById('editor');
+            editor.value = 'Final keystrokes before logout';
+            editor.dispatchEvent(new Event('input', { bubbles: true }));
+            const form = document.querySelector('.profile-popover form');
+            form.requestSubmit(); form.requestSubmit();
+        });
+        await eventually(() => Boolean(releaseResponse));
+        assert.equal(await page.evaluate(() => document.body.inert), true, 'editing is paused until logout finishes');
+        assert.equal(requests.includes('/logout'), false, 'logout waits for the save acknowledgement');
+        releaseResponse(); releaseResponse = null;
         await page.waitForURL('**/login');
+        assert.equal(remote, 'Final keystrokes before logout');
+        assert.equal(requests.filter(url => url === '/logout').length, 1);
         assert.equal(await page.evaluate(() => MdNotesOfflineDB.meta()), null);
         assert.equal(await page.evaluate(async () => (await MdNotesOfflineDB.all()).length), 0);
         await context.setOffline(true);
         await page.goto(origin + '/app/Note.md');
-        await page.locator('#offline-reader').waitFor();
+        await page.locator('#offline-reader').waitFor({ state: 'attached' });
         assert(!await page.locator('#offline-reader').innerText().then(text => text.includes('Original')));
         assert.deepEqual(errors, []);
     } finally {

@@ -368,6 +368,11 @@
         offline?.sync();
     };
     async function saveQuietly(snapshot = false) { return !editor || !saver ? true : saver.save(snapshot); }
+    if (offline) offline.prepareToLeave = async () => {
+        if (pendingUploads || navigating || (editor && (!saver || editor.disabled))) return false;
+        clearTimeout(localSaveTimer);
+        return saveQuietly(true);
+    };
     async function refreshPreview() {
         const localPreview = () => {
             const preview = editorLayout?.querySelector('.preview-markdown');

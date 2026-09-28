@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\SharedNote;
+use App\Services\NoteVersionHistory;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -17,3 +18,11 @@ Artisan::command('shares:prune-anonymous', function (): void {
 })->purpose('Remove anonymous notes after their 30-day expiry');
 
 Schedule::command('shares:prune-anonymous')->hourly();
+
+Artisan::command('versions:prune', function (NoteVersionHistory $history): void {
+    $history->pruneExpired();
+
+    $this->info('Expired note versions and unreferenced attachments pruned.');
+})->purpose('Remove note versions older than 7 days and their unused attachments');
+
+Schedule::command('versions:prune')->hourly()->withoutOverlapping();

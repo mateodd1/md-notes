@@ -8,6 +8,7 @@ use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
 use App\Services\ShareTokens;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -142,17 +143,26 @@ class ApiNoteController extends Controller
 
                 $tokens = app(ShareTokens::class);
                 for ($attempt = 0; $attempt < 10; $attempt++) {
+                    $token = $tokens->generate();
+                    if ($tokens->exists($token)) {
+                        continue;
+                    }
+
                     try {
                         return SharedNote::query()->create([
                             'user_id' => null,
                             'path' => $path,
-                            'token' => $tokens->generate(),
+                            ...$tokens->storedAttributes($token),
                             'content' => $content,
                             'content_bytes' => strlen($content),
                             'expires_at' => now()->addDays(30),
                         ]);
                     } catch (UniqueConstraintViolationException) {
                         // The token is shared with account-owned links; retry rare collisions.
+                    } catch (QueryException $exception) {
+                        if (! $tokens->exists($token)) {
+                            throw $exception;
+                        }
                     }
                 }
 

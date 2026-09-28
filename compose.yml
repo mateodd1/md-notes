@@ -1,6 +1,7 @@
 services:
   app:
-    build:
+    image: md-notes-app
+    build: &md-notes-build
       context: .
       dockerfile: Dockerfile
     container_name: md-notes-app
@@ -11,7 +12,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    volumes:
+    volumes: &md-notes-volumes
       - ./app:/var/www/html
       - ./data:/var/www/html/storage/app/private/spaces
     networks:
@@ -19,6 +20,7 @@ services:
 
   scheduler:
     image: md-notes-app
+    build: *md-notes-build
     container_name: md-notes-scheduler
     restart: unless-stopped
     command: ["php", "artisan", "schedule:work"]
@@ -30,8 +32,7 @@ services:
         condition: service_started
       db:
         condition: service_healthy
-    volumes:
-      - ./app:/var/www/html
+    volumes: *md-notes-volumes
     networks:
       - nginx-pm_default
 
