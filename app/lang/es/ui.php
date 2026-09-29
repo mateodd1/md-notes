@@ -358,4 +358,5 @@ return [
     'version_from' => 'versión del',
     'markdown_plain_text_fallback' => 'Esta nota tiene demasiado formato para previsualizarla de forma segura. Se muestra todo su contenido como texto sin formato; puedes seguir editándola.',
     'markdown_too_complex_pdf' => 'Esta nota tiene demasiado formato para exportarla como PDF. Simplifica su HTML y vuelve a intentarlo.',
+    'pdf_generated_with' => 'Documento generado con mdnotes.net',
 ];

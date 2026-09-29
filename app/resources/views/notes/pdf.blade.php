@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>{{ $title }}</title>
     <style>
-        @page { margin:18mm 17mm; }
+        @page { margin:18mm 17mm 22mm; }
         body { color:#1e293b; font:11px/1.6 "DejaVu Sans",sans-serif; word-wrap:break-word; }
         .note-path { color:#64748b; font-size:9px; border-bottom:1px solid #cbd5e1; padding-bottom:8px; margin-bottom:20px; }
         h1,h2,h3,h4 { line-height:1.3; page-break-after:avoid; }
@@ -22,10 +22,12 @@
         kbd { font-family:"DejaVu Sans Mono",monospace; font-size:9px; padding:2px 4px; border:1px solid #cbd5e1; background:#f1f5f9; }
         blockquote { margin:12px 0; padding-left:12px; border-left:3px solid #94a3b8; color:#475569; }
         .missing-image { color:#64748b; font-style:italic; }
+        .pdf-footer { position:fixed; right:0; bottom:-13mm; left:0; padding-top:4px; border-top:1px solid #cbd5e1; color:#64748b; font-size:8px; text-align:center; }
     </style>
 </head>
 <body>
     <div class="note-path">{{ $path }}</div>
     {!! $rendered !!}
+    <footer class="pdf-footer">{{ __('ui.pdf_generated_with') }}</footer>
 </body>
 </html>
