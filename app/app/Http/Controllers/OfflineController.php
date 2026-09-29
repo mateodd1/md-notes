@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\BoundedHtmlParser;
 use App\Services\OfflineNotes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,11 +23,11 @@ class OfflineController extends Controller
         $assets = [
             '/offline', '/assets/md-notes-offline.css', '/assets/md-notes-offline-db.js',
             '/assets/md-notes-offline.js', '/assets/md-notes-offline-page.js',
-            '/assets/md-notes-base.css', '/assets/md-notes-google.css',
+            '/assets/md-notes-base.css', '/assets/md-notes-google.css', '/assets/md-notes-pages.css',
             '/assets/md-notes-viewport.js',
             '/assets/vendor/marked.js', '/assets/vendor/purify.js',
         ];
-        $version = hash('sha256', implode('|', array_map(static fn (string $path): string => (string) filemtime($path === '/offline' ? resource_path('views/offline.blade.php') : public_path($path)), $assets)).filemtime(public_path('assets/md-notes-offline-worker.js')));
+        $version = hash('sha256', implode('|', array_map(static fn (string $path): string => (string) filemtime($path === '/offline' ? resource_path('views/offline.blade.php') : public_path($path)), $assets)).filemtime(public_path('assets/md-notes-offline-worker.js')).json_encode(BoundedHtmlParser::LIMITS, JSON_THROW_ON_ERROR));
         $configuration = json_encode(['version' => $version, 'assets' => $assets, 'base' => parse_url(route('notes.index'), PHP_URL_PATH) ?: '/'], JSON_THROW_ON_ERROR);
 
         return response('const OFFLINE_CONFIG = '.$configuration.";\n".file_get_contents(public_path('assets/md-notes-offline-worker.js')))

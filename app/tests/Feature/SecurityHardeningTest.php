@@ -285,7 +285,12 @@ class SecurityHardeningTest extends TestCase
         $this->actingAs($user)->post(route('shares.store'), ['path' => 'Shared.md', 'duration' => '24h'])
             ->assertSessionHasNoErrors()->assertSessionHas('share_url', app(ShareTokens::class)->publicUrl('xY3zA4'));
 
-        $this->assertDatabaseHas('shared_notes', ['user_id' => $user->id, 'token' => 'xY3zA4']);
+        $this->assertDatabaseHas('shared_notes', [
+            'user_id' => $user->id,
+            'token' => null,
+            'token_hash' => app(ShareTokens::class)->digest('xY3zA4'),
+        ]);
+        $this->assertSame('xY3zA4', app(ShareTokens::class)->find('xY3zA4')?->token);
     }
 
     private function createFileSession(?User $user = null, ?int $version = null): string

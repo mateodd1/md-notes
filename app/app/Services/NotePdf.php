@@ -14,7 +14,7 @@ class NotePdf
 {
     public function __construct(
         private readonly NoteMedia $media,
-        private readonly MarkdownMediaUrls $mediaUrls,
+        private readonly MarkdownRenderer $markdown,
     ) {}
 
     public function render(User $user, string $path, string $content): string
@@ -50,11 +50,7 @@ class NotePdf
 
     private function renderMarkdown(User $user, string $content): string
     {
-        $html = Str::markdown($this->mediaUrls->forAuthenticatedUser($content), [
-            'html_input' => 'strip',
-            'allow_unsafe_links' => false,
-            'renderer' => ['soft_break' => "<br>\n"],
-        ]);
+        $html = $this->markdown->render($content, plainTextFallback: false);
         $parser = new HTML5;
         $document = $parser->loadHTML('<!doctype html><html><head><meta charset="utf-8"></head><body>'.$html.'</body></html>');
         $mediaBase = Str::beforeLast(route('media.show', ['filename' => 'placeholder']), 'placeholder');

@@ -1,10 +1,70 @@
 /* Local drafts are written before sending, and acknowledged by mutation ID, never by timing. */
 (() => {
     const db = window.MdNotesOfflineDB;
+    let markdownPurifier;
+    const plainTextMarkdown = content => {
+        const wrapper = document.createElement('div');
+        const message = window.mdNotesMarkdownPolicy?.fallbackMessage;
+        if (message) {
+            const notice = document.createElement('p');
+            notice.className = 'markdown-fallback'; notice.setAttribute('role', 'status'); notice.textContent = message;
+            wrapper.append(notice);
+        }
+        const pre = document.createElement('pre'), code = document.createElement('code');
+        code.textContent = content; pre.append(code); wrapper.append(pre);
+        return wrapper.innerHTML;
+    };
+    const withinHtmlBudget = (html, limits) => {
+        if (html.length > limits.maxBytes || new TextEncoder().encode(html).length > limits.maxBytes) return false;
+        for (const [marker, maximum] of [['<', limits.maxTagMarkers], ['=', limits.maxAttributeMarkers]]) {
+            let offset = -1, count = 0;
+            while ((offset = html.indexOf(marker, offset + 1)) !== -1) if (++count > maximum) return false;
+        }
+        return true;
+    };
+    const withinDomBudget = (html, limits) => {
+        // Called only after the cheap input budget, before DOMPurify builds its own DOM.
+        const template = document.createElement('template'); template.innerHTML = html;
+        const pending = [[template.content, 0]];
+        let nodes = 0;
+        while (pending.length) {
+            const [node, depth] = pending.pop();
+            if (++nodes > limits.maxNodes || depth > limits.maxDepth || (node.attributes?.length || 0) > limits.maxAttributesPerElement) return false;
+            for (const child of node.childNodes) pending.push([child, depth + 1]);
+        }
+        return true;
+    };
     window.renderOfflineMarkdown = (content, workspaceUrl) => {
-        const clean = DOMPurify.sanitize(marked.parse(content, { breaks: true }), {
-            USE_PROFILES: { html: true }, FORBID_TAGS: ['form', 'style', 'button', 'textarea', 'select', 'iframe', 'object', 'embed'],
-            FORBID_ATTR: ['style', 'id', 'name'],
+        const { elements, limits } = window.mdNotesMarkdownPolicy || {};
+        if (!elements || !limits) {
+            // An older cached shell may not yet have the policy: keep its content readable and inert.
+            return plainTextMarkdown(content);
+        }
+        if (!withinHtmlBudget(content, limits)) return plainTextMarkdown(content);
+        const html = marked.parse(content, { breaks: true });
+        if (!withinHtmlBudget(html, limits) || !withinDomBudget(html, limits)) return plainTextMarkdown(content);
+        if (!markdownPurifier) {
+            markdownPurifier = DOMPurify(window);
+            markdownPurifier.addHook('uponSanitizeAttribute', (node, data) => {
+                const tag = node.nodeName.toLowerCase();
+                if (!elements[tag]?.includes(data.attrName)) { data.keepAttr = false; return; }
+                if (data.attrName === 'href' || data.attrName === 'src') {
+                    try {
+                        const protocol = new URL(data.attrValue, location.origin).protocol;
+                        if (!['http:', 'https:', ...(data.attrName === 'href' ? ['mailto:'] : [])].includes(protocol)) data.keepAttr = false;
+                    } catch (_) { data.keepAttr = false; }
+                }
+            });
+            markdownPurifier.addHook('afterSanitizeAttributes', node => {
+                if (node.nodeName.toLowerCase() === 'input') {
+                    node.setAttribute('type', 'checkbox'); node.setAttribute('disabled', 'disabled');
+                }
+            });
+        }
+        const clean = markdownPurifier.sanitize(html, {
+            // Keep normal text and the temporary body wrapper, but drop unsupported elements with their contents.
+            ALLOWED_TAGS: ['body', '#text', ...Object.keys(elements)], ALLOWED_ATTR: [...new Set(Object.values(elements).flat())],
+            ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false, KEEP_CONTENT: false,
         });
         const template = document.createElement('template'); template.innerHTML = clean;
         const base = new URL(workspaceUrl).pathname.replace(/\/$/, '');
@@ -74,7 +134,12 @@
                 if (!valid.has(note.path)) await db.note(this.config.account, note.path, current => current?.dirty ? current : null);
             }
             const notes = await db.all();
-            const filenames = new Set(notes.flatMap(note => note.content.match(/[a-z0-9]{24}\.[a-z0-9]{1,10}/g) || []));
+            const decoder = document.createElement('textarea');
+            const filenames = new Set(notes.flatMap(note => {
+                // Decode entities as text, never as elements or executable HTML.
+                decoder.innerHTML = note.content.replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+                return ((note.content + '\n' + decoder.value).match(/[a-z0-9]{24}\.[a-z0-9]{1,10}/gi) || []).map(filename => filename.toLowerCase());
+            }));
             const cache = await caches.open('md-notes-media-' + this.config.account);
             for (const key of await cache.keys()) if (!filenames.has(new URL(key.url).pathname.split('/').pop())) await cache.delete(key);
         }

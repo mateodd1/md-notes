@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Str;
+use App\Services\MarkdownRenderer;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
 
@@ -21,7 +21,7 @@ class DocumentationController extends Controller
         ]);
     }
 
-    public function show(): View
+    public function show(MarkdownRenderer $markdown): View
     {
         $locale = app()->getLocale() === 'es' ? 'es' : 'en';
         $document = resource_path($locale === 'es' ? 'docs/documentation.md' : 'docs/documentation.en.md');
@@ -30,10 +30,7 @@ class DocumentationController extends Controller
         return view('documentation', [
             'title' => $locale === 'es' ? 'md-notes · Documentación' : 'md-notes · Documentation',
             'modifiedAt' => date(DATE_ATOM, (int) filemtime($document)),
-            'rendered' => Str::markdown((string) file_get_contents($document), [
-                'html_input' => 'strip',
-                'allow_unsafe_links' => false,
-            ]),
+            'rendered' => $markdown->render((string) file_get_contents($document), softBreaks: false),
         ]);
     }
 }

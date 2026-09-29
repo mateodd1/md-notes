@@ -24,6 +24,19 @@ class NotePdfTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
+    public function test_excessively_complex_html_returns_a_controlled_error_and_cleans_temporary_files(): void
+    {
+        $user = User::factory()->create();
+        $content = str_repeat('<div>', 150).'Original content'.str_repeat('</div>', 150);
+        app(NoteSpace::class)->write($user, 'Complex.md', $content);
+
+        $this->actingAs($user)->getJson(route('notes.pdf', ['path' => 'Complex.md']))
+            ->assertUnprocessable()->assertJsonPath('message', __('ui.markdown_too_complex_pdf'));
+
+        $this->assertSame($content, app(NoteSpace::class)->read($user, 'Complex.md'));
+        $this->assertSame([], File::directories(storage_path('app/private/pdf-tmp')));
+    }
+
     public function test_an_owner_can_download_a_real_pdf_with_the_original_note_name(): void
     {
         $user = User::factory()->create();
@@ -57,6 +70,22 @@ class NotePdfTest extends TestCase
 
         $response->assertOk();
         $this->assertStringContainsString('/Subtype /Image', $response->streamedContent());
+    }
+
+    public function test_html_tables_and_their_own_images_can_be_exported_to_pdf(): void
+    {
+        $user = User::factory()->create();
+        $image = app(NoteMedia::class)->store($user, UploadedFile::fake()->image('Schedule.png', 32, 32));
+        $content = '<table><tr><th colspan="2">Schedule</th></tr><tr><td><kbd>Ctrl</kbd> H<sub>2</sub>O</td>'
+            .'<td><img src="https://md.mateo.ovh/media/'.$image.'"></td></tr></table>'
+            .'<details><summary>Details</summary><p>Always visible in a PDF.</p></details>';
+        app(NoteSpace::class)->write($user, 'Table.md', $content);
+
+        $response = $this->actingAs($user)->get(route('notes.pdf', ['path' => 'Table.md']))->assertOk();
+
+        $this->assertStringStartsWith('%PDF-', $response->streamedContent());
+        $this->assertStringContainsString('/Subtype /Image', $response->streamedContent());
+        $this->assertSame($content, app(NoteSpace::class)->read($user, 'Table.md'));
     }
 
     public function test_an_export_does_not_load_foreign_missing_external_or_unsafe_images(): void

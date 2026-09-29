@@ -14,7 +14,7 @@ async function eventually(check, label = 'condition') {
     }
     assert.fail('Timed out: ' + label);
 }
-const assets = ['/offline', '/assets/md-notes-offline.css', '/assets/md-notes-offline-db.js', '/assets/md-notes-offline.js', '/assets/md-notes-offline-page.js', '/assets/md-notes-viewport.js', '/assets/md-notes-base.css', '/assets/md-notes-google.css', '/assets/vendor/marked.js', '/assets/vendor/purify.js'];
+const assets = ['/offline', '/assets/md-notes-offline.css', '/assets/md-notes-offline-db.js', '/assets/md-notes-offline.js', '/assets/md-notes-offline-page.js', '/assets/md-notes-viewport.js', '/assets/md-notes-base.css', '/assets/md-notes-google.css', '/assets/md-notes-pages.css', '/assets/vendor/marked.js', '/assets/vendor/purify.js'];
 const mediaPath = '/app/media/1234567890abcdef12345678.png';
 
 test('offline reload, local persistence, reconnection, conflicts, sanitization and account isolation', { skip: !modulePath, timeout: 90000 }, async () => {
@@ -79,6 +79,16 @@ test('offline reload, local persistence, reconnection, conflicts, sanitization a
         await page.waitForFunction(() => window.mdOffline?.available && navigator.serviceWorker.controller);
         await eventually(() => page.evaluate(async () => (await MdNotesOfflineDB.all()).length === 1));
         await page.evaluate(url => mdOffline.cacheMedia([url]), origin + mediaPath);
+        // Entity-encoded attachment names must survive local cache cleanup too.
+        assert.equal(await page.evaluate(async mediaPath => {
+            const content = '<img src="' + mediaPath.replace('1234567890', '&#49;234567890').replace('.png', '&period;png') + '">';
+            await mdOffline.remember('Encoded.md', content, 'a'.repeat(64));
+            await mdOffline.prune(['Note.md', 'Encoded.md']);
+            const cache = await caches.open('md-notes-media-' + mdOffline.config.account);
+            const retained = Boolean(await cache.match(location.origin + mediaPath));
+            await MdNotesOfflineDB.note(mdOffline.config.account, 'Encoded.md', () => null);
+            return retained;
+        }, mediaPath), true);
         assert.equal(await page.locator('#editor').inputValue(), '# Cached note\n\nOriginal');
         await context.setOffline(true);
         await page.locator('#edit-note').click();
@@ -162,7 +172,44 @@ test('offline reload, local persistence, reconnection, conflicts, sanitization a
         // Rendering cannot execute HTML scripts or event handlers from Markdown.
         const rendered = await page.evaluate(() => renderOfflineMarkdown('<img src=x onerror="window.pwned=1"><script>window.pwned=2</script>[click](javascript:alert(1))', location.origin + '/app'));
         assert(!rendered.includes('onerror')); assert(!rendered.includes('<script')); assert(!rendered.includes('javascript:'));
+        const safeHtml = await page.evaluate(() => renderOfflineMarkdown('<table><tr><th colspan="2">Plan</th></tr><tr><td rowspan="2">H<sub>2</sub>O</td><td>x<sup>2</sup></td></tr></table><details open><summary>Details</summary><kbd>Ctrl</kbd></details><input type="text" value="secret"><a href="data:text/html,test" class="button" onclick="alert(1)">Unsafe</a>', location.origin + '/app'));
+        for (const value of ['<table>', 'colspan="2"', 'rowspan="2"', '<sub>2</sub>', '<sup>2</sup>', '<summary>Details</summary>', '<kbd>Ctrl</kbd>', 'type="checkbox"', 'disabled="disabled"']) assert(safeHtml.includes(value), value + ' preserved');
+        for (const value of ['data:', 'class=', 'onclick=', 'type="text"', 'value=']) assert(!safeHtml.includes(value), value + ' removed');
+
+        const complexHtml = await page.evaluate(() => {
+            const sources = [
+                '<div>'.repeat(150) + 'Original' + '</div>'.repeat(150),
+                '<div>'.repeat(100000) + 'Original' + '</div>'.repeat(100000),
+                '<div ' + Array.from({ length: 65 }, (_, i) => `data-${i}="value"`).join(' ') + '>Original</div>',
+            ];
+            return sources.map(source => {
+                source += '<script>window.pwned=1</script>Original end.';
+                const template = document.createElement('template');
+                template.innerHTML = renderOfflineMarkdown(source, location.origin + '/app');
+                return { complete: template.content.querySelector('pre code')?.textContent === source,
+                    notice: Boolean(template.content.querySelector('.markdown-fallback')), unsafe: Boolean(template.content.querySelector('script, div')) };
+            });
+        });
+        for (const result of complexHtml) assert.deepEqual(result, { complete: true, notice: true, unsafe: false });
+
+        // The cached mobile reader must contain wide tables without overflowing the page.
+        const readerState = await page.evaluate(() => {
+            const reader = document.getElementById('offline-reader');
+            const state = { html: reader.innerHTML, hidden: reader.hidden };
+            reader.innerHTML = renderOfflineMarkdown('<table><tr><th>Documento</th><th>Descripción</th><th>Estado</th></tr><tr><td>Resumen.md</td><td>' + 'LongColumn'.repeat(30) + '</td><td>Revisado</td></tr></table>', location.origin + '/app');
+            reader.hidden = false;
+            return state;
+        });
+        assert.equal(await page.locator('#offline-reader table').count(), 1);
+        assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#offline-reader table')).overflowX), 'auto');
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        assert.deepEqual(await page.evaluate(() => {
+            const table = document.querySelector('#offline-reader table');
+            table.scrollLeft = 100;
+            const heading = table.querySelector('th'), style = getComputedStyle(heading);
+            return { scrolls: table.scrollLeft > 0, wrapsWords: style.overflowWrap, headingWrap: style.whiteSpace };
+        }), { scrolls: true, wrapsWords: 'normal', headingWrap: 'nowrap' });
+        await page.evaluate(state => { const reader = document.getElementById('offline-reader'); reader.innerHTML = state.html; reader.hidden = state.hidden; }, readerState);
         if (process.env.MDNOTES_SCREENSHOTS) {
             await page.emulateMedia({ colorScheme: 'dark' });
             await page.locator('#offline-edit').click();

@@ -7,8 +7,9 @@
     <title>md-notes · {{ __('offline.title') }}</title>
     <link rel="stylesheet" href="/assets/md-notes-base.css">
     <link rel="stylesheet" href="/assets/md-notes-google.css">
+    <link rel="stylesheet" href="/assets/md-notes-pages.css">
     <link rel="stylesheet" href="/assets/md-notes-offline.css">
-    <script>window.mdNotesOfflinePage = @json(['translations' => __('offline'), 'notes' => route('notes.index'), 'login' => route('login')]);</script>
+    <script>window.mdNotesMarkdownPolicy = @json(\App\Services\MarkdownRenderer::policy()); window.mdNotesOfflinePage = @json(['translations' => __('offline'), 'notes' => route('notes.index'), 'login' => route('login')]);</script>
     <script defer src="/assets/vendor/marked.js"></script>
     <script defer src="/assets/vendor/purify.js"></script>
     <script defer src="/assets/md-notes-offline-db.js"></script>

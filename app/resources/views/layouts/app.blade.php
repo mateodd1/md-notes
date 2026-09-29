@@ -28,7 +28,7 @@
                 'locale' => app()->getLocale(), 'translations' => __('offline'),
             ];
         @endphp
-        <script>window.mdNotesOfflineConfig = @json($offlineConfig);</script>
+        <script>window.mdNotesMarkdownPolicy = @json(\App\Services\MarkdownRenderer::policy()); window.mdNotesOfflineConfig = @json($offlineConfig);</script>
         <link rel="stylesheet" href="{{ asset('assets/md-notes-offline.css') }}?v={{ filemtime(public_path('assets/md-notes-offline.css')) }}">
         <script defer src="{{ asset('assets/md-notes-offline-db.js') }}?v={{ filemtime(public_path('assets/md-notes-offline-db.js')) }}"></script>
         <script defer src="{{ asset('assets/md-notes-offline.js') }}?v={{ filemtime(public_path('assets/md-notes-offline.js')) }}"></script>

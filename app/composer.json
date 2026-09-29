@@ -10,7 +10,8 @@
         "ext-gd": "*",
         "dompdf/dompdf": "^3.1.6",
         "laravel/framework": "^13.17",
-        "laravel/tinker": "^3.0"
+        "laravel/tinker": "^3.0",
+        "symfony/html-sanitizer": "^8.1"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

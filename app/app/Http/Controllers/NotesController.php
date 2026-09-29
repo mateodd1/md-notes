@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SharedNote;
 use App\Models\User;
-use App\Services\MarkdownMediaUrls;
+use App\Services\MarkdownRenderer;
 use App\Services\NoteMedia;
 use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
@@ -23,7 +23,7 @@ class NotesController extends Controller
         private readonly NoteSpace $spaces,
         private readonly NoteVersionHistory $history,
         private readonly NoteMedia $media,
-        private readonly MarkdownMediaUrls $mediaUrls,
+        private readonly MarkdownRenderer $markdown,
         private readonly StorageQuota $quota,
     ) {}
 
@@ -477,10 +477,6 @@ class NotesController extends Controller
 
     private function renderMarkdown(string $content): string
     {
-        return Str::markdown($this->mediaUrls->forAuthenticatedUser($content), [
-            'html_input' => 'strip',
-            'allow_unsafe_links' => false,
-            'renderer' => ['soft_break' => "<br>\n"],
-        ]);
+        return $this->markdown->render($content);
     }
 }

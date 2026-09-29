@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\NoteVersion;
-use App\Services\MarkdownMediaUrls;
+use App\Services\MarkdownRenderer;
 use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
 use Illuminate\Database\QueryException;
@@ -20,7 +20,7 @@ class NoteVersionController extends Controller
     public function __construct(
         private readonly NoteSpace $spaces,
         private readonly NoteVersionHistory $history,
-        private readonly MarkdownMediaUrls $mediaUrls,
+        private readonly MarkdownRenderer $markdown,
     ) {}
 
     public function index(Request $request, string $path): View|JsonResponse
@@ -50,11 +50,7 @@ class NoteVersionController extends Controller
     {
         $version = $this->ownedVersion($request, $version);
         $title = Str::beforeLast(basename($version->path), '.');
-        $rendered = Str::markdown($this->mediaUrls->forAuthenticatedUser($version->content), [
-            'html_input' => 'strip',
-            'allow_unsafe_links' => false,
-            'renderer' => ['soft_break' => "<br>\n"],
-        ]);
+        $rendered = $this->markdown->render($version->content);
 
         if ($request->expectsJson()) {
             return response()->json([

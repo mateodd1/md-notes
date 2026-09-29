@@ -356,4 +356,6 @@ return [
     'storage_quota_exceeded' => 'No queda espacio suficiente. Usas :used de :limit.',
     'back_to_note' => 'Volver a la nota',
     'version_from' => 'versión del',
+    'markdown_plain_text_fallback' => 'Esta nota tiene demasiado formato para previsualizarla de forma segura. Se muestra todo su contenido como texto sin formato; puedes seguir editándola.',
+    'markdown_too_complex_pdf' => 'Esta nota tiene demasiado formato para exportarla como PDF. Simplifica su HTML y vuelve a intentarlo.',
 ];

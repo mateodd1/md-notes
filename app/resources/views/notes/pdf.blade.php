@@ -17,6 +17,9 @@
         table { width:100%; table-layout:fixed; border-collapse:collapse; font-size:9px; }
         th,td { border:1px solid #cbd5e1; padding:5px; word-wrap:break-word; }
         th { background:#f1f5f9; }
+        [align="center"] { text-align:center; } [align="right"] { text-align:right; }
+        details,summary { display:block; } summary { font-weight:bold; }
+        kbd { font-family:"DejaVu Sans Mono",monospace; font-size:9px; padding:2px 4px; border:1px solid #cbd5e1; background:#f1f5f9; }
         blockquote { margin:12px 0; padding-left:12px; border-left:3px solid #94a3b8; color:#475569; }
         .missing-image { color:#64748b; font-style:italic; }
     </style>

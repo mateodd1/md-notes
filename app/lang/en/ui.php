@@ -356,4 +356,6 @@ return [
     'storage_quota_exceeded' => 'There is not enough space. You are using :used of :limit.',
     'back_to_note' => 'Back to note',
     'version_from' => 'version from',
+    'markdown_plain_text_fallback' => 'This note has too much formatting to preview safely. Its full content is shown as plain text; you can still edit it.',
+    'markdown_too_complex_pdf' => 'This note has too much formatting to export as a PDF. Simplify its HTML and try again.',
 ];

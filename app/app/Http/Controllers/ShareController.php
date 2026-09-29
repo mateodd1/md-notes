@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SharedNote;
 use App\Services\MarkdownMediaUrls;
+use App\Services\MarkdownRenderer;
 use App\Services\NoteMedia;
 use App\Services\NoteSpace;
 use App\Services\NoteVersionHistory;
@@ -27,6 +28,7 @@ class ShareController extends Controller
         private readonly MarkdownMediaUrls $mediaUrls,
         private readonly NoteVersionHistory $history,
         private readonly ShareTokens $tokens,
+        private readonly MarkdownRenderer $markdown,
     ) {}
 
     public function store(Request $request): RedirectResponse
@@ -118,11 +120,7 @@ class ShareController extends Controller
         $share = $this->activeShare($token);
         $content = $this->contentFor($share);
         $title = Str::beforeLast(basename($share->path), '.');
-        $rendered = Str::markdown($share->user_id === null ? $content : $this->mediaUrls->forShare($share, $content), [
-            'html_input' => 'strip',
-            'allow_unsafe_links' => false,
-            'renderer' => ['soft_break' => "<br>\n"],
-        ]);
+        $rendered = $this->markdown->render($content, $share);
 
         return view('shares.show', [
             'share' => $share,

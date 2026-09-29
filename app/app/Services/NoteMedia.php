@@ -361,9 +361,12 @@ class NoteMedia
     /** @return array<int, string> */
     private function filenamesIn(string $content): array
     {
-        preg_match_all('/(?<![a-z0-9])[a-z0-9]{24}\.[a-z0-9]{1,10}(?![a-z0-9])/i', $content, $matches);
+        // Retain references conservatively, including HTML entities in links/images.
+        // The same scan protects notes, versions, trash and copies of shared notes.
+        $decoded = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        preg_match_all('/(?<![a-z0-9])[a-z0-9]{24}\.[a-z0-9]{1,10}(?![a-z0-9])/i', $content."\n".$decoded, $matches);
 
-        return array_map(Str::lower(...), $matches[0]);
+        return array_values(array_unique(array_map(Str::lower(...), $matches[0])));
     }
 
     private function extensionFor(UploadedFile $file): string
