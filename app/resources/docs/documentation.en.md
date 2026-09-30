@@ -51,6 +51,7 @@ Large images are fitted to the available width. Hover an image to reveal its dow
 - Paste an image from the clipboard with `Ctrl` + `V` / `⌘` + `V` while editing a note.
 - You can also drag and drop files onto the editor or use the paperclip button.
 - Each attachment can be up to 10 MB.
+- Supported formats are static JPG, PNG, GIF and WebP images, plus PDF, ZIP, TXT, MD and CSV. Images are re-encoded on upload; animations can be attached inside a ZIP file.
 - Attachments referenced by a note count towards your account storage quota.
 - **Properties** shows the Markdown size, attachment size, and total size for a note.
 

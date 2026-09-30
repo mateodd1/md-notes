@@ -9,13 +9,13 @@
     <link rel="stylesheet" href="/assets/md-notes-google.css">
     <link rel="stylesheet" href="/assets/md-notes-pages.css">
     <link rel="stylesheet" href="/assets/md-notes-offline.css">
-    <script>window.mdNotesMarkdownPolicy = @json(\App\Services\MarkdownRenderer::policy()); window.mdNotesOfflinePage = @json(['translations' => __('offline'), 'notes' => route('notes.index'), 'login' => route('login')]);</script>
-    <script defer src="/assets/vendor/marked.js"></script>
-    <script defer src="/assets/vendor/purify.js"></script>
-    <script defer src="/assets/md-notes-offline-db.js"></script>
-    <script defer src="/assets/md-notes-offline.js"></script>
-    <script defer src="/assets/md-notes-offline-page.js"></script>
-    <script defer src="/assets/md-notes-viewport.js"></script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}">window.mdNotesMarkdownPolicy = @json(\App\Services\MarkdownRenderer::policy()); window.mdNotesOfflinePage = @json(['translations' => __('offline'), 'notes' => route('notes.index'), 'login' => route('login')]);</script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="/assets/vendor/marked.js"></script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="/assets/vendor/purify.js"></script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="/assets/md-notes-offline-db.js"></script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="/assets/md-notes-offline.js"></script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="/assets/md-notes-offline-page.js"></script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="/assets/md-notes-viewport.js"></script>
 </head>
 <body class="offline-page">
     <aside class="offline-sidebar">

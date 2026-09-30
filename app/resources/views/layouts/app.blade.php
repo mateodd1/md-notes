@@ -9,7 +9,7 @@
     @include('partials.favicons')
     <title>{{ $title ?? 'md-notes' }}</title>
     @stack('meta')
-    <script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}">
         try { const theme = localStorage.getItem('md-notes-theme') || 'system'; if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (_) { if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark'); }
     </script>
     <link rel="stylesheet" href="{{ asset('assets/md-notes-base.css') }}?v={{ filemtime(public_path('assets/md-notes-base.css')) }}">
@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="{{ asset('assets/md-notes-responsive.css') }}?v={{ filemtime(public_path('assets/md-notes-responsive.css')) }}">
     <link rel="stylesheet" href="{{ asset('assets/md-notes-google.css') }}?v={{ filemtime(public_path('assets/md-notes-google.css')) }}">
     <link rel="stylesheet" href="{{ asset('assets/md-notes-pages.css') }}?v={{ filemtime(public_path('assets/md-notes-pages.css')) }}">
-    <script defer src="{{ asset('assets/md-notes-viewport.js') }}?v={{ filemtime(public_path('assets/md-notes-viewport.js')) }}"></script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="{{ asset('assets/md-notes-viewport.js') }}?v={{ filemtime(public_path('assets/md-notes-viewport.js')) }}"></script>
     @if (auth()->check() && auth()->user()->hasVerifiedEmail() && ! auth()->user()->isDemo())
         @php
             $offlineConfig = [
@@ -28,12 +28,12 @@
                 'locale' => app()->getLocale(), 'translations' => __('offline'),
             ];
         @endphp
-        <script>window.mdNotesMarkdownPolicy = @json(\App\Services\MarkdownRenderer::policy()); window.mdNotesOfflineConfig = @json($offlineConfig);</script>
+        <script nonce="{{ request()->attributes->get('csp_nonce') }}">window.mdNotesMarkdownPolicy = @json(\App\Services\MarkdownRenderer::policy()); window.mdNotesOfflineConfig = @json($offlineConfig);</script>
         <link rel="stylesheet" href="{{ asset('assets/md-notes-offline.css') }}?v={{ filemtime(public_path('assets/md-notes-offline.css')) }}">
-        <script defer src="{{ asset('assets/md-notes-offline-db.js') }}?v={{ filemtime(public_path('assets/md-notes-offline-db.js')) }}"></script>
-        <script defer src="{{ asset('assets/md-notes-offline.js') }}?v={{ filemtime(public_path('assets/md-notes-offline.js')) }}"></script>
-        <script defer src="{{ asset('assets/vendor/marked.js') }}"></script>
-        <script defer src="{{ asset('assets/vendor/purify.js') }}"></script>
+        <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="{{ asset('assets/md-notes-offline-db.js') }}?v={{ filemtime(public_path('assets/md-notes-offline-db.js')) }}"></script>
+        <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="{{ asset('assets/md-notes-offline.js') }}?v={{ filemtime(public_path('assets/md-notes-offline.js')) }}"></script>
+        <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="{{ asset('assets/vendor/marked.js') }}"></script>
+        <script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="{{ asset('assets/vendor/purify.js') }}"></script>
     @endif
 </head>
 <body>

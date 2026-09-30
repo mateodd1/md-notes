@@ -2,14 +2,14 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
 use Database\Factories\UserFactory;
+use Illuminate\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Auth\MustVerifyEmail;
 use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'password'])]
@@ -42,6 +42,11 @@ class User extends Authenticatable implements MustVerifyEmailContract
     public function hasVerifiedEmail(): bool
     {
         return $this->isDemo() || $this->email_verified_at !== null;
+    }
+
+    public function isDisabledDemo(): bool
+    {
+        return $this->isDemo() && ! config('md-notes.demo_enabled');
     }
 
     /** @return HasMany<ApiToken, $this> */

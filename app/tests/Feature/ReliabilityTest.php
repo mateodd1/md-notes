@@ -40,7 +40,7 @@ class ReliabilityTest extends TestCase
     {
         $user = User::factory()->create();
         $media = app(NoteMedia::class);
-        $filename = $media->store($user, UploadedFile::fake()->create('attachment.pdf', 1, 'application/pdf'));
+        $filename = $media->store($user, UploadedFile::fake()->createWithContent('attachment.pdf', '%PDF-1.4 test document'));
         $path = $media->path($user, $filename);
 
         $this->assertSame(0, $media->pruneUnreferenced($user));
@@ -56,7 +56,7 @@ class ReliabilityTest extends TestCase
     {
         $user = User::factory()->create();
         $media = app(NoteMedia::class);
-        $filename = $media->store($user, UploadedFile::fake()->create('attachment.pdf', 1));
+        $filename = $media->store($user, UploadedFile::fake()->createWithContent('attachment.pdf', '%PDF-1.4 test document'));
         $path = $media->path($user, $filename);
         $this->travel(25)->hours();
         $this->assertSame(1, $media->pruneUnreferenced($user));
@@ -107,7 +107,7 @@ class ReliabilityTest extends TestCase
         $owner = User::factory()->create();
         $recipient = User::factory()->create();
         $media = app(NoteMedia::class);
-        $filename = $media->store($owner, UploadedFile::fake()->create('file.pdf', 1));
+        $filename = $media->store($owner, UploadedFile::fake()->createWithContent('file.pdf', '%PDF-1.4 test document'));
         $this->spaces->write($owner, 'Note.md', "[File](/app/media/{$filename})");
         $share = SharedNote::query()->create(['user_id' => $owner->id, 'path' => 'Note.md', 'token' => 'A2BCD']);
         $history = Mockery::mock(NoteVersionHistory::class);

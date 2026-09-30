@@ -51,6 +51,7 @@ Las imágenes grandes se ajustan al ancho disponible. Al colocar el cursor sobre
 - Pega una imagen desde el portapapeles con `Ctrl` + `V` / `⌘` + `V` mientras editas una nota.
 - También puedes arrastrar y soltar archivos sobre el editor o usar el botón de clip.
 - Cada adjunto puede pesar hasta 10 MB.
+- Se admiten imágenes estáticas JPG, PNG, GIF y WebP, además de PDF, ZIP, TXT, MD y CSV. Las imágenes se procesan de nuevo al subirlas; las animaciones pueden adjuntarse dentro de un ZIP.
 - Los adjuntos referenciados por una nota cuentan dentro de la cuota de almacenamiento de tu cuenta.
 - En **Propiedades** puedes ver el tamaño del Markdown, sus adjuntos y el total de la nota.
 

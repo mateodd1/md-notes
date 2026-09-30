@@ -135,6 +135,10 @@ class OfflineNotesTest extends TestCase
         // Real Blade markup used by the browser suite, with disposable factory data only.
         file_put_contents('/tmp/md-notes-offline-workspace.html', $workspace->getContent());
         file_put_contents('/tmp/md-notes-offline-shell.html', $shell->getContent());
+        file_put_contents('/tmp/md-notes-browser-csp.json', json_encode([
+            'workspace' => $workspace->headers->get('Content-Security-Policy'),
+            'shell' => $shell->headers->get('Content-Security-Policy'),
+        ], JSON_THROW_ON_ERROR));
     }
 
     public function test_logout_clears_browser_storage(): void

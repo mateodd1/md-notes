@@ -3,6 +3,7 @@
 namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 
 abstract class TestCase extends BaseTestCase
@@ -27,5 +28,16 @@ abstract class TestCase extends BaseTestCase
     {
         File::deleteDirectory($this->isolatedStorage);
         parent::tearDown();
+    }
+
+    protected function zipAttachment(string $name): UploadedFile
+    {
+        $path = storage_path('test-attachment.zip');
+        $zip = new \ZipArchive;
+        $zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $zip->addFromString('file.txt', 'Test document');
+        $zip->close();
+
+        return new UploadedFile($path, $name, 'application/zip', test: true);
     }
 }

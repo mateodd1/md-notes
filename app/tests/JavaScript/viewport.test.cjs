@@ -10,6 +10,7 @@ test('visible viewport follows the keyboard and coalesces resize events without 
     const viewport = { height: 844, offsetTop: 0, scale: 1, addEventListener: (name, callback) => { events[name] = callback; } };
     const windowEvents = {};
     vm.runInNewContext(script, {
+        MutationObserver: class { observe() {} },
         window: { visualViewport: viewport, addEventListener: (name, callback) => { windowEvents[name] = callback; } },
         document: { documentElement: { style: { setProperty: (name, value) => { styles[name] = value; } } } },
         requestAnimationFrame: callback => frames.push(callback),
@@ -32,5 +33,5 @@ test('visible viewport follows the keyboard and coalesces resize events without 
 });
 
 test('browsers without VisualViewport keep the CSS fallback', () => {
-    assert.doesNotThrow(() => vm.runInNewContext(script, { window: {} }));
+    assert.doesNotThrow(() => vm.runInNewContext(script, { window: {}, document: {}, MutationObserver: class { observe() {} } }));
 });

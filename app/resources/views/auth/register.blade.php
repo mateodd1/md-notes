@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @push('head')
-<script defer src="{{ asset('assets/md-notes-register.js') }}?v={{ filemtime(public_path('assets/md-notes-register.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="{{ asset('assets/md-notes-register.js') }}?v={{ filemtime(public_path('assets/md-notes-register.js')) }}"></script>
 @endpush
 
 @section('body')

@@ -223,6 +223,8 @@ class ShareController extends Controller
     {
         $share = $this->tokens->find($token) ?? abort(404);
 
+        abort_if($share->user?->isDisabledDemo(), 404);
+
         if ($share->expires_at?->isPast()) {
             $share->delete();
             abort(404);

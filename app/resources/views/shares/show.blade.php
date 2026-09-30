@@ -25,7 +25,7 @@
     <article class="shared-note">@if ($showFileTitle)<h1>{{ $title }}</h1>@endif<div class="shared-content markdown-body">{!! $rendered !!}</div></article>
     @if ($expirationLabel)<footer class="shared-note-expiration"><time datetime="{{ $share->expires_at->toIso8601String() }}">{{ $expirationLabel }}</time></footer>@endif
 </main>
-<script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
     const enhanceImages = (root) => { root.querySelectorAll('img').forEach((image) => { if (image.closest('.note-image')) return; const imageElement = image.closest('a') || image; const wrapper = document.createElement('span'); wrapper.className = 'note-image'; imageElement.parentNode.insertBefore(wrapper, imageElement); wrapper.append(imageElement); const download = document.createElement('a'); download.className = 'image-download'; download.href = image.currentSrc || image.src; download.download = ''; download.title = @json(__('ui.download_image')); download.setAttribute('aria-label', @json(__('ui.download_image'))); download.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>'; wrapper.append(download); }); };
     enhanceImages(document.querySelector('.shared-content'));
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');

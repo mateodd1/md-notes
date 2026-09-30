@@ -26,7 +26,7 @@ class ApiTokenAuthentication
             ->where('token_hash', hash('sha256', $plainToken))
             ->first();
 
-        if (! $token || ! $token->user) {
+        if (! $token || ! $token->user || $token->user->isDisabledDemo()) {
             return response()->json(['message' => 'The API token is invalid or has been revoked.'], 401);
         }
 

@@ -4,7 +4,7 @@
 
 @push('head')
 <link rel="stylesheet" href="{{ asset('assets/md-notes-trash.css') }}?v={{ filemtime(public_path('assets/md-notes-trash.css')) }}">
-<script src="{{ asset('assets/md-notes-trash.js') }}?v={{ filemtime(public_path('assets/md-notes-trash.js')) }}" defer></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('assets/md-notes-trash.js') }}?v={{ filemtime(public_path('assets/md-notes-trash.js')) }}" defer></script>
 @endpush
 
 @section('body')
@@ -41,7 +41,7 @@
         <article class="trash-preview-content markdown-body" hidden></article>
     </div>
 </dialog>
-<script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
     const toast = document.getElementById('toast');
     if (toast) { const dismiss = () => { toast.classList.add('hiding'); setTimeout(() => toast.remove(), 220); }; toast.querySelector('button').onclick = dismiss; setTimeout(dismiss, 3000); }
 </script>

@@ -9,6 +9,7 @@ services:
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
+      MD_NOTES_DEMO_ENABLED: "false"
     depends_on:
       db:
         condition: service_healthy
@@ -27,6 +28,7 @@ services:
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
+      MD_NOTES_DEMO_ENABLED: "false"
     depends_on:
       app:
         condition: service_started

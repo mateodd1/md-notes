@@ -31,7 +31,7 @@
         @endif
     @endif
 </main>
-<script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
     const toast = document.getElementById('toast');
     if (toast) { const dismiss = () => { toast.classList.add('hiding'); setTimeout(() => toast.remove(), 220); }; toast.querySelector('button').onclick = dismiss; setTimeout(dismiss, 3000); }
     const copyText = @json(['copied' => __('ui.copied'), 'copy' => __('ui.copy'), 'selected' => __('ui.selected')]);

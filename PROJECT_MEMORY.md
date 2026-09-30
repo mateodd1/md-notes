@@ -110,9 +110,10 @@ Las migraciones se ejecutan con `docker compose exec -T app php artisan migrate 
 
 ## Cuenta de demostración
 
+- Desactivada por defecto mediante `MD_NOTES_DEMO_ENABLED=false`, también fijado en Compose de producción. Se bloquean login, sesiones existentes, API y enlaces compartidos de la demo sin eliminar sus datos. El comando de reinicio no actúa mientras esté desactivada.
 - Credenciales públicas de prueba: `demo@demo` / `demo`.
 - El comando `md-notes:reset-demo` recrea su estado inicial, elimina sus enlaces y versiones y vuelve a crear dos notas de ejemplo.
-- El temporizador de sistema `md-notes-demo-reset.timer` está habilitado. Ejecuta `md-notes-demo-reset.service` cada hora y tras el arranque, que invoca dicho comando dentro del contenedor.
+- El temporizador de sistema `md-notes-demo-reset.timer` está deshabilitado en producción. Para una instalación de prueba con la demo expresamente habilitada, puede ejecutar `md-notes-demo-reset.service` cada hora.
 - La cuenta demo nunca es administradora. Sus cambios están pensados para ser efímeros.
 - La opción de configuración aparece atenuada y queda bloqueada también en el servidor para la cuenta demo; se mantienen disponibles las funciones de prueba como crear notas, historial, compartir y cerrar sesión.
 

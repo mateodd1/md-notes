@@ -71,10 +71,10 @@
     <meta name="twitter:image" content="{{ $socialImage }}">
     <title>{{ $pageTitle }}</title>
     @include('partials.favicons')
-    <script type="application/ld+json">{!! json_encode($structuredData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) !!}</script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" type="application/ld+json">{!! json_encode($structuredData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) !!}</script>
     <link rel="stylesheet" href="{{ asset('assets/md-notes-landing.css') }}?v={{ filemtime(public_path('assets/md-notes-landing.css')) }}">
     <link rel="stylesheet" href="{{ asset('assets/md-notes-google.css') }}?v={{ filemtime(public_path('assets/md-notes-google.css')) }}">
-    <script src="{{ asset('assets/md-notes-landing.js') }}?v={{ filemtime(public_path('assets/md-notes-landing.js')) }}" defer></script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('assets/md-notes-landing.js') }}?v={{ filemtime(public_path('assets/md-notes-landing.js')) }}" defer></script>
 </head>
 <body>
     <a class="skip-link" href="#main">{{ $es ? 'Ir al contenido' : 'Skip to content' }}</a>

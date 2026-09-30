@@ -56,7 +56,7 @@ class AuthController extends Controller
         ]);
         $credentials['email'] = mb_strtolower($credentials['email']);
 
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+        if (! Auth::attemptWhen($credentials, fn (User $user): bool => ! $user->isDisabledDemo(), $request->boolean('remember'))) {
             return back()->withErrors(['email' => __('ui.invalid_credentials')])->onlyInput('email');
         }
 

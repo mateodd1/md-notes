@@ -21,6 +21,7 @@ test('offline reload, local persistence, reconnection, conflicts, sanitization a
     const { chromium } = require(modulePath);
     const template = fs.readFileSync('/tmp/md-notes-offline-workspace.html', 'utf8');
     const shell = fs.readFileSync('/tmp/md-notes-offline-shell.html', 'utf8');
+    const policies = JSON.parse(fs.readFileSync('/tmp/md-notes-browser-csp.json', 'utf8'));
     const config = JSON.parse(template.match(/window\.mdNotesOfflineConfig = (.*?);<\/script>/)[1]);
     let account = config.account, remote = '# Cached note\n\nOriginal', sent = [], origin, failSync = false, authenticated = true, requests = [];
     let holdResponse = false, releaseResponse;
@@ -55,9 +56,9 @@ test('offline reload, local persistence, reconnection, conflicts, sanitization a
                 res.writeHead(200, { 'Content-Type': 'application/javascript', 'Service-Worker-Allowed': '/' });
                 return res.end('const OFFLINE_CONFIG = ' + JSON.stringify({ version: 'browser-test', assets, base: '/app' }) + ';\n' + fs.readFileSync(path.join(__dirname, '../../public/assets/md-notes-offline-worker.js')));
             }
-            if (url.pathname === '/offline') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end(rewrite(shell)); }
+            if (url.pathname === '/offline') { res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Security-Policy': policies.shell }); return res.end(rewrite(shell)); }
             if (url.pathname === '/app/Note.md' || url.pathname === '/app') {
-                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Security-Policy': policies.workspace });
                 return res.end(rewrite(template).replace(config.account, account));
             }
             if (url.pathname.startsWith('/assets/')) {
@@ -70,13 +71,24 @@ test('offline reload, local persistence, reconnection, conflicts, sanitization a
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     origin = 'http://127.0.0.1:' + server.address().port;
-    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'], executablePath: process.env.MDNOTES_CHROMIUM });
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
+    const policyViolations = [];
+    page.on('console', message => { if (message.text().includes('Content Security Policy')) policyViolations.push(message.text()); });
     try {
         await page.goto(origin + '/app/Note.md');
         await page.waitForFunction(() => window.mdOffline?.available && navigator.serviceWorker.controller);
+        assert.deepEqual(await page.evaluate(async () => {
+            const fragment = document.createElement('div');
+            fragment.innerHTML = '<span data-progress-width="42"></span><span data-tree-color="#0284c7"></span><span data-choice-color="#7c3aed"></span><button data-parent-depth="2"></button>';
+            document.body.append(fragment);
+            await new Promise(requestAnimationFrame);
+            const result = [fragment.children[0].style.width, fragment.children[1].style.getPropertyValue('--folder-color'), fragment.children[2].style.getPropertyValue('--folder-choice'), fragment.children[3].style.getPropertyValue('--parent-depth')];
+            fragment.remove();
+            return result;
+        }), ['42%', '#0284c7', '#7c3aed', '2']);
         await eventually(() => page.evaluate(async () => (await MdNotesOfflineDB.all()).length === 1));
         await page.evaluate(url => mdOffline.cacheMedia([url]), origin + mediaPath);
         // Entity-encoded attachment names must survive local cache cleanup too.
@@ -271,6 +283,7 @@ test('offline reload, local persistence, reconnection, conflicts, sanitization a
         await page.locator('#offline-reader').waitFor({ state: 'attached' });
         assert(!await page.locator('#offline-reader').innerText().then(text => text.includes('Original')));
         assert.deepEqual(errors, []);
+        assert.deepEqual(policyViolations, []);
     } finally {
         releaseResponse?.();
         await browser.close();

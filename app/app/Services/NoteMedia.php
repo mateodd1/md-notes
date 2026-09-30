@@ -24,28 +24,37 @@ class NoteMedia
     public function __construct(
         private readonly NoteSpace $spaces,
         private readonly StorageQuota $quota,
+        private readonly AttachmentUploads $uploads,
     ) {}
 
     public function store(User $user, UploadedFile $file): string
     {
-        $root = $this->spaces->root($user);
-        $this->quota->ensureCanAdd($user, $root, (int) $file->getSize());
-
-        $extension = $this->extensionFor($file);
-        $directory = $this->directory($user);
-        $filename = Str::lower(Str::random(24)).'.'.$extension;
-        $originalName = $this->sanitizeOriginalName($file->getClientOriginalName(), $filename);
-
+        $prepared = $this->uploads->prepare($file);
         try {
-            $this->markPending($directory, $filename);
-            $file->move($directory, $filename);
-            $this->writeOriginalName($directory, $filename, $originalName);
-        } catch (\Throwable $exception) {
-            $this->removeCopied($user, [$filename]);
-            throw new RuntimeException(__('ui.cannot_save_attachment'), previous: $exception);
-        }
+            $root = $this->spaces->root($user);
+            $this->quota->ensureCanAdd($user, $root, (int) filesize($prepared['path']));
+            $directory = $this->directory($user);
+            $filename = Str::lower(Str::random(24)).'.'.$prepared['extension'];
+            $originalName = $this->sanitizeOriginalName($file->getClientOriginalName(), $filename);
 
-        return $filename;
+            try {
+                $this->markPending($directory, $filename);
+                if (! copy($prepared['path'], $directory.'/'.$filename)) {
+                    throw new RuntimeException(__('ui.cannot_save_attachment'));
+                }
+                chmod($directory.'/'.$filename, 0660);
+                $this->writeOriginalName($directory, $filename, $originalName);
+            } catch (\Throwable $exception) {
+                $this->removeCopied($user, [$filename]);
+                throw new RuntimeException(__('ui.cannot_save_attachment'), previous: $exception);
+            }
+
+            return $filename;
+        } finally {
+            if ($prepared['temporary']) {
+                @unlink($prepared['path']);
+            }
+        }
     }
 
     public function path(User $user, string $filename): string
@@ -367,17 +376,5 @@ class NoteMedia
         preg_match_all('/(?<![a-z0-9])[a-z0-9]{24}\.[a-z0-9]{1,10}(?![a-z0-9])/i', $content."\n".$decoded, $matches);
 
         return array_values(array_unique(array_map(Str::lower(...), $matches[0])));
-    }
-
-    private function extensionFor(UploadedFile $file): string
-    {
-        $mime = (string) $file->getMimeType();
-        if (isset(self::EXTENSIONS[$mime])) {
-            return self::EXTENSIONS[$mime];
-        }
-
-        $extension = Str::lower($file->getClientOriginalExtension());
-
-        return preg_match('/^[a-z0-9]{1,10}$/', $extension) ? $extension : 'bin';
     }
 }

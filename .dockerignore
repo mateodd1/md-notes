@@ -1,2 +1,6 @@
-app
-data
+# Only these files are needed to build the runtime image.
+**
+!Dockerfile
+!docker/
+!docker/apache-vhost.conf
+!docker/entrypoint.sh

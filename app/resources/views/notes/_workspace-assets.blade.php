@@ -19,9 +19,9 @@
         ],
     ];
 @endphp
-<script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
     window.mdNotesWorkspace = @json($workspaceConfig);
 </script>
-<script defer src="{{ asset('assets/md-notes-saver.js') }}?v={{ filemtime(public_path('assets/md-notes-saver.js')) }}"></script>
-<script defer src="{{ asset('assets/md-notes-search.js') }}?v={{ filemtime(public_path('assets/md-notes-search.js')) }}"></script>
-<script defer src="{{ asset('assets/md-notes-workspace.js') }}?v={{ filemtime(public_path('assets/md-notes-workspace.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="{{ asset('assets/md-notes-saver.js') }}?v={{ filemtime(public_path('assets/md-notes-saver.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="{{ asset('assets/md-notes-search.js') }}?v={{ filemtime(public_path('assets/md-notes-search.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" defer src="{{ asset('assets/md-notes-workspace.js') }}?v={{ filemtime(public_path('assets/md-notes-workspace.js')) }}"></script>

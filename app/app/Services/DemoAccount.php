@@ -14,11 +14,14 @@ class DemoAccount
     public function __construct(
         private readonly NoteSpace $spaces,
         private readonly NoteVersionHistory $history,
-    ) {
-    }
+    ) {}
 
     public function reset(): User
     {
+        if (! config('md-notes.demo_enabled')) {
+            throw new \RuntimeException('The demo account is disabled.');
+        }
+
         $this->history->pruneExpired();
 
         $user = User::query()->firstOrNew(['email' => self::EMAIL]);

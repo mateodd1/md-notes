@@ -31,12 +31,12 @@ class WorkspaceDomainTest extends TestCase
 
     public function test_landing_stays_on_public_domain_and_workspace_uses_the_subdomain_root(): void
     {
-        $this->withHeader('Accept-Language', 'es')->get('https://mdnotes.net/')->assertOk()
+        $landing = $this->withHeader('Accept-Language', 'es')->get('https://mdnotes.net/')->assertOk()
             ->assertSee('https://app.mdnotes.net/login', false)
             ->assertSee('https://app.mdnotes.net/signup', false)
             ->assertSee('https://app.mdnotes.net/session-status', false)
-            ->assertHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://app.mdnotes.net; font-src 'self' data:")
             ->assertHeaderMissing('X-Robots-Tag');
+        $this->assertStringContainsString("connect-src 'self' https://app.mdnotes.net;", $landing->headers->get('Content-Security-Policy'));
         $this->get('https://mdnotes.net/documentation.md')->assertOk()->assertHeaderMissing('X-Robots-Tag');
         $this->get('https://mdnotes.net/sitemap.xml')->assertOk()->assertHeaderMissing('X-Robots-Tag');
         $this->get('https://app.mdnotes.net/')->assertRedirect('https://app.mdnotes.net/login');

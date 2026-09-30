@@ -192,14 +192,14 @@ class NotesTest extends TestCase
             ->actingAs($user)
             ->post(route('media.store'), [
                 '_token' => 'test-token',
-                'file' => UploadedFile::fake()->create('esquema.jpg', 1, 'image/jpeg'),
+                'file' => UploadedFile::fake()->image('esquema.jpg'),
             ])
             ->assertOk();
         $unreferenced = $this->withSession(['_token' => 'test-token'])
             ->actingAs($user)
             ->post(route('media.store'), [
                 '_token' => 'test-token',
-                'file' => UploadedFile::fake()->create('privado.zip', 1, 'application/zip'),
+                'file' => $this->zipAttachment('privado.zip'),
             ])
             ->assertOk();
 
@@ -379,7 +379,7 @@ class NotesTest extends TestCase
         $media = app(NoteMedia::class);
         $filenames = [];
         foreach (['expired', 'recent', 'live', 'trash'] as $name) {
-            $filenames[$name] = $media->store($user, UploadedFile::fake()->create($name.'.pdf', 1));
+            $filenames[$name] = $media->store($user, UploadedFile::fake()->createWithContent($name.'.pdf', '%PDF-1.4 test document'));
         }
         $spaces->write($user, 'Live.md', '[File](/media/'.$filenames['live'].')');
         $spaces->write($user, 'Deleted.md', '[File](/media/'.$filenames['trash'].')');
@@ -395,7 +395,7 @@ class NotesTest extends TestCase
             'user_id' => $user->id, 'path' => 'History.md', 'content' => '[Recent](/media/'.$filenames['recent'].')',
         ]);
         $this->travel(25)->hours();
-        $pending = $media->store($user, UploadedFile::fake()->create('pending.pdf', 1));
+        $pending = $media->store($user, UploadedFile::fake()->createWithContent('pending.pdf', '%PDF-1.4 test document'));
         $usedBefore = app(StorageQuota::class)->used($user);
 
         $this->artisan('versions:prune')->assertSuccessful();
@@ -561,7 +561,7 @@ class NotesTest extends TestCase
             'is_admin' => true,
         ]);
         $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
-        $image = UploadedFile::fake()->createWithContent('clipboard.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLJDQAAAABJRU5ErkJggg=='));
+        $image = UploadedFile::fake()->image('clipboard.png');
 
         $response = $this->withSession(['_token' => 'test-token'])
             ->actingAs($user)
@@ -576,7 +576,7 @@ class NotesTest extends TestCase
         $user = User::factory()->create();
         $this->app->instance(NoteSpace::class, new NoteSpace($this->mediaPath));
 
-        $image = UploadedFile::fake()->createWithContent('horario de clase.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLJDQAAAABJRU5ErkJggg=='));
+        $image = UploadedFile::fake()->image('horario de clase.png');
         $document = UploadedFile::fake()->createWithContent('apuntes de clase.pdf', '%PDF-1.4 test');
         foreach ([$image, $document] as $file) {
             $response = $this->withSession(['_token' => 'test-token'])

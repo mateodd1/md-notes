@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'demo_enabled' => (bool) env('MD_NOTES_DEMO_ENABLED', false),
+
     'trusted_proxies' => array_values(array_filter(array_map(
         'trim',
         explode(',', (string) env('MD_NOTES_TRUSTED_PROXIES', '')),

@@ -17,7 +17,7 @@
     <meta name="theme-color" content="#131314" media="(prefers-color-scheme: dark)">
     <title>{{ $statusCode }} · md-notes</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}">
         try { const theme = localStorage.getItem('md-notes-theme') || 'system'; if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (_) { if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark'); }
     </script>
     <link rel="stylesheet" href="/assets/md-notes-base.css">

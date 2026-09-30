@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Mail\AccountDeletedMail;
-use App\Mail\WelcomeToMdNotes;
 use App\Mail\ProfileVerificationCodeMail;
+use App\Mail\WelcomeToMdNotes;
 use App\Models\User;
 use App\Services\NoteSpace;
 use Illuminate\Support\Facades\Mail;
@@ -88,6 +88,7 @@ class RegistrationTest extends TestCase
 
     public function test_demo_credentials_can_sign_in_without_registering(): void
     {
+        config(['md-notes.demo_enabled' => true]);
         User::query()->create([
             'name' => 'Cuenta demo',
             'email' => 'demo@demo',
@@ -227,6 +228,7 @@ class RegistrationTest extends TestCase
 
     public function test_demo_profile_settings_are_disabled_server_side(): void
     {
+        config(['md-notes.demo_enabled' => true]);
         $demo = User::query()->create([
             'name' => 'Cuenta demo',
             'email' => 'demo@demo',

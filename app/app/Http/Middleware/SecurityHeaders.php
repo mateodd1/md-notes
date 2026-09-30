@@ -10,6 +10,8 @@ class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
+        $nonce = base64_encode(random_bytes(24));
+        $request->attributes->set('csp_nonce', $nonce);
         $response = $next($request);
         $connectSources = ["'self'"];
         $allowsSameOriginFrame = $request->routeIs('media.preview');
@@ -20,7 +22,7 @@ class SecurityHeaders
 
         $response->headers->remove('X-Powered-By');
         $frameAncestors = $allowsSameOriginFrame ? "'self'" : "'none'";
-        $response->headers->set('Content-Security-Policy', "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors {$frameAncestors}; object-src 'none'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src ".implode(' ', $connectSources)."; font-src 'self' data:");
+        $response->headers->set('Content-Security-Policy', "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors {$frameAncestors}; object-src 'none'; img-src 'self' data: https:; style-src 'self'; style-src-attr 'none'; script-src 'self' 'nonce-{$nonce}'; script-src-attr 'none'; worker-src 'self'; connect-src ".implode(' ', $connectSources)."; font-src 'self' data:");
         $response->headers->set('Permissions-Policy', 'camera=(), geolocation=(), microphone=(), payment=(), usb=()');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('X-Content-Type-Options', 'nosniff');

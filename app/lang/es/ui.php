@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'attachment_type_not_allowed' => 'Este tipo de archivo no está permitido o el contenido no coincide con su extensión. Usa JPG, PNG, GIF, WebP, PDF, ZIP, TXT, MD o CSV.',
+    'attachment_invalid' => 'El adjunto está dañado o no es un archivo válido.',
+    'attachment_image_dimensions' => 'La imagen es demasiado grande para procesarla de forma segura. Redúcela a 16 megapíxeles o menos.',
+    'attachment_animation_not_supported' => 'No se admiten imágenes animadas. Sube una imagen estática o adjunta la animación dentro de un ZIP.',
     'login_intro_label' => 'Tu espacio de trabajo',
     'login_intro_title' => 'Escribe, organiza y vuelve a encontrarlo.',
     'login_intro_copy' => 'Un lugar sencillo para tus notas y documentación en Markdown, desde el navegador.',

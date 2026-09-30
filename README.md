@@ -87,6 +87,9 @@ Estas notas son públicas para quien tenga el enlace, caducan a los 30 días y n
 - Recuperación de contraseña y confirmación por código para cambiarla.
 - Los espacios de cuentas, adjuntos, versiones y enlaces compartidos de cuenta están asociados a su propietario. Las notas temporales sin cuenta son públicas mediante su enlace y caducan.
 - El HTML incluido en Markdown se filtra y los enlaces inseguros no se renderizan.
+- CSP sin `unsafe-inline`, con nonces por respuesta para los scripts de la interfaz.
+- Adjuntos validados por extensión y contenido: imágenes estáticas JPG, PNG, GIF y WebP, PDF, ZIP, TXT, MD y CSV. Las imágenes se recodifican; la validación de formatos no sustituye un análisis antivirus de los documentos o del contenido de los ZIP.
+- La demo está desactivada por defecto y en el Compose de producción. El contexto de construcción de Docker excluye la configuración privada y los datos.
 - Los tokens de API se guardan únicamente como hash.
 - Las exportaciones de cuenta se guardan fuera del directorio público, su enlace usa un token aleatorio guardado como hash y caduca en 24 horas.
 - Los adjuntos sin referencias se limpian al guardar o borrar; los necesarios para restaurar versiones se conservan solo durante el periodo de historial.

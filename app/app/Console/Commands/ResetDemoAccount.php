@@ -13,6 +13,12 @@ class ResetDemoAccount extends Command
 
     public function handle(DemoAccount $demo): int
     {
+        if (! config('md-notes.demo_enabled')) {
+            $this->info('Demo disabled; no changes made.');
+
+            return self::SUCCESS;
+        }
+
         $user = $demo->reset();
 
         $this->info('Cuenta demo restablecida: '.$user->email);

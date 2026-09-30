@@ -18,7 +18,7 @@ class ValidateSessionVersion
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        if ($user && (int) $request->session()->get('auth_version', 0) !== (int) $user->auth_version) {
+        if ($user && ($user->isDisabledDemo() || (int) $request->session()->get('auth_version', 0) !== (int) $user->auth_version)) {
             Auth::guard('web')->logoutCurrentDevice();
             $request->session()->invalidate();
             $request->session()->regenerateToken();

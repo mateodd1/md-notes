@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'attachment_type_not_allowed' => 'This file type is not supported or its contents do not match its extension. Use JPG, PNG, GIF, WebP, PDF, ZIP, TXT, MD or CSV.',
+    'attachment_invalid' => 'The attachment is damaged or is not a valid file.',
+    'attachment_image_dimensions' => 'The image is too large to process safely. Reduce it to 16 megapixels or less.',
+    'attachment_animation_not_supported' => 'Animated images are not supported. Upload a static image or attach the animation inside a ZIP file.',
     'login_intro_label' => 'Your workspace',
     'login_intro_title' => 'Write, organise, and find it again.',
     'login_intro_copy' => 'A straightforward place for your Markdown notes and documentation, right in your browser.',
